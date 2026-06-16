@@ -12,11 +12,12 @@ use std::time::Duration;
 use bytes::Bytes;
 use futures_util::{Sink, Stream};
 use http::{HeaderName, HeaderValue};
+use libsignal_core::LogSafeDisplay as _;
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tungstenite::Message;
 
-use crate::errors::{LogSafeDisplay as _, TransportConnectError};
+use crate::errors::TransportConnectError;
 use crate::route::{
     ComposedConnector, Connector, ConnectorExt as _, DEFAULT_HTTPS_PORT, ReflectorProxyRoute,
 };
@@ -232,7 +233,10 @@ impl Connector<Box<ReflectorProxyRoute<IpAddr>>, ()> for super::StatelessProxied
             ws::WithoutResponseHeaders::new(),
             StatelessTlsConnector::default(),
         );
-        log::info!("[{log_tag}] attempting connection over reflector proxy");
+        let https_route = &outer.inner;
+        let http_fragment = &https_route.fragment;
+        let proxy_name = http_fragment.front_name.unwrap_or("unknown");
+        log::info!("[{log_tag}] attempting connection over reflector proxy ({proxy_name})");
         match connector.connect(outer, log_tag).await {
             Ok(websocket) => Ok(ReflectorStream::new(websocket)),
             Err(WebSocketConnectError::Transport(error)) => Err(error),

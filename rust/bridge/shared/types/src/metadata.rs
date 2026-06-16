@@ -10,10 +10,48 @@
 //!
 //! While some metadata facilities are shared, they're specialized to each client language.
 
+use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
+use std::fmt::Debug;
+
+use derive_more::From;
 // This is pub so that it can be used in bridge macros.
 pub use linkme;
 use linkme::distributed_slice;
 use serde::Serialize;
+
+/// If we're inserting a duplicate key, make sure that the new and old values equal.
+pub fn insert_checked<T: Debug + Eq>(dst: &mut BTreeMap<String, T>, k: String, v: T) {
+    match dst.entry(k) {
+        Entry::Vacant(entry) => {
+            entry.insert(v);
+        }
+        Entry::Occupied(entry) => assert_eq!(entry.get(), &v),
+    }
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Struct<FieldType> {
+    pub is_tuple: bool,
+    /// `(name, type)`
+    ///
+    /// names should be `_0`, `_1`, ... for a tuple struct
+    pub fields: Vec<(String, FieldType)>,
+}
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Enum<FieldType> {
+    /// `(variant name, contents)`
+    pub variants: Vec<(String, Struct<FieldType>)>,
+}
+
+pub type NiceType = String;
+
+#[derive(From, Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(tag = "kind")]
+pub enum StructOrEnum<FieldType> {
+    Struct(Struct<FieldType>),
+    Enum(Enum<FieldType>),
+}
 
 #[cfg(feature = "node")]
 pub mod node {
@@ -21,19 +59,19 @@ pub mod node {
 
     use super::*;
 
-    #[derive(Debug, Clone, Serialize)]
+    #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
     pub struct TsArgConverter {
         /// What's the high-level typescript type?
-        pub nice_type: String,
+        pub nice_type: NiceType,
         /// What's the low-level typescript type that gets passed to native?
         pub ffi_type: String,
         /// What function should be used to convert between the types?
         pub converter_function: String,
     }
-    #[derive(Debug, Clone, Serialize)]
+    #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
     pub struct TsReturnConverter {
         /// What's the high-level typescript type?
-        pub nice_type: String,
+        pub nice_type: NiceType,
         /// What's the low-level typescript type that gets passed to native?
         pub ffi_type: String,
         /// What function should be used to convert between the types?
@@ -54,6 +92,10 @@ pub mod node {
         pub native_functions: BTreeMap<String, NativeFunction>,
         pub bridge_traits: BTreeMap<String, Vec<BridgeTraitFunction>>,
         pub nice_functions: BTreeMap<String, NiceFunction>,
+
+        pub derived_types: BTreeMap<String, StructOrEnum<NiceType>>,
+        pub derived_return_converters: BTreeMap<String, StructOrEnum<TsReturnConverter>>,
+        pub derived_arg_converters: BTreeMap<String, StructOrEnum<TsArgConverter>>,
     }
 
     #[derive(Debug, Clone, Serialize)]
@@ -71,6 +113,21 @@ pub mod node {
     /// These functions should mutate the attached [TsMetadataContext] to register their item.
     #[distributed_slice]
     pub static NODE_ITEMS: [FnWithModule<TsMetadataContext>];
+
+    pub mod names {
+        pub fn return_ffi_type(ty: &str) -> String {
+            format!("ReturnFfi{ty}")
+        }
+        pub fn return_converter_function(ty: &str) -> String {
+            format!("returnConverter{ty}")
+        }
+        pub fn arg_ffi_type(ty: &str) -> String {
+            format!("ArgFfi{ty}")
+        }
+        pub fn arg_converter_function(ty: &str) -> String {
+            format!("argConverter{ty}")
+        }
+    }
 
     /// See [crate::support]'s `transform_helper` for how this works, and the rationale.
     ///
@@ -157,17 +214,18 @@ pub mod node {
 pub mod jni {
     use std::collections::BTreeMap;
 
-    use linkme::distributed_slice;
     use serde::Serialize;
 
     use super::*;
 
-    #[derive(Debug, Clone, Serialize)]
+    #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
     pub struct KtArgConverter {
         /// What's the high-level kotlin type?
         pub nice_type: String,
         /// What's the low-level kotlin type that gets passed to native?
         pub ffi_type: String,
+        /// What's the kotlin spelling of the type that this type erases to (for a field lookup)
+        pub ffi_field_type_erased: String,
         /// What function should be used to convert between the types?
         ///
         /// This will be invoked like `<converter_function>(my_value)`. As a result, instance
@@ -175,7 +233,7 @@ pub mod jni {
         /// like `(Object::toString)(my_value)`.
         pub converter_function: String,
     }
-    #[derive(Debug, Clone, Serialize)]
+    #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
     pub struct KtReturnConverter {
         /// What's the high-level kotlin type?
         pub nice_type: String,
@@ -200,6 +258,10 @@ pub mod jni {
     #[derive(Debug, Clone, Serialize, Default)]
     pub struct KtMetadataContext {
         pub nice_functions: BTreeMap<String, NiceFunction>,
+
+        pub derived_types: BTreeMap<String, StructOrEnum<NiceType>>,
+        pub derived_return_converters: BTreeMap<String, StructOrEnum<KtReturnConverter>>,
+        pub derived_arg_converters: BTreeMap<String, StructOrEnum<KtArgConverter>>,
     }
 
     /// These functions should mutate the attached [KtMetadataContext] to register their item.
@@ -247,19 +309,18 @@ pub mod jni {
 pub mod ffi {
     use std::collections::BTreeMap;
 
-    use linkme::distributed_slice;
     use serde::Serialize;
 
     use super::*;
 
-    #[derive(Debug, Clone, Serialize)]
+    #[derive(Debug, Clone, Serialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
     pub struct SwiftArgConverter {
         /// What's the high-level swift type?
         pub nice_type: String,
         /// What's the type which implements the Swift `ArgConverter` protocol
         pub converter_type: String,
     }
-    #[derive(Debug, Clone, Serialize)]
+    #[derive(Debug, Clone, Serialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
     pub struct SwiftReturnConverter {
         /// What's the high-level swift type?
         pub nice_type: String,
@@ -278,6 +339,10 @@ pub mod ffi {
     #[derive(Debug, Clone, Serialize, Default)]
     pub struct SwiftMetadataContext {
         pub nice_functions: BTreeMap<String, NiceFunction>,
+
+        pub derived_types: BTreeMap<String, StructOrEnum<NiceType>>,
+        pub derived_return_converters: BTreeMap<String, StructOrEnum<SwiftReturnConverter>>,
+        pub derived_arg_converters: BTreeMap<String, StructOrEnum<SwiftArgConverter>>,
     }
 
     /// These functions should mutate the attached [SwiftMetadataContext] to register their item.
@@ -317,6 +382,14 @@ pub mod ffi {
             ) -> SwiftReturnConverter {
                 T::register_swift_result_converter(ctx)
             }
+        }
+    }
+    pub mod names {
+        pub fn return_converter(ty: &str) -> String {
+            format!("DerivedReturnConverter{ty}")
+        }
+        pub fn arg_converter(ty: &str) -> String {
+            format!("DerivedArgConverter{ty}")
         }
     }
 }

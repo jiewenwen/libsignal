@@ -16,6 +16,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 #include <stdlib.h>
 #include "signal_ffi.h"
 
+typedef enum {
+  SignalMySimpleTestEnumFfiResultA,
+  SignalMySimpleTestEnumFfiResultB,
+} SignalMySimpleTestEnumFfiResult;
+
+typedef enum {
+  SignalMySimpleTestEnumFfiArgA,
+  SignalMySimpleTestEnumFfiArgB,
+} SignalMySimpleTestEnumFfiArg;
+
 typedef struct SignalComparableBackup SignalComparableBackup;
 
 typedef struct SignalFakeChatConnection SignalFakeChatConnection;
@@ -56,6 +66,12 @@ typedef struct SignalTestingValueHolder SignalTestingValueHolder;
 typedef struct {
   SignalComparableBackup *raw;
 } SignalMutPointerComparableBackup;
+
+/**
+ * A type alias to be used with [`OwnedBufferOf`], so that `OwnedBufferOf<c_char>` and
+ * `OwnedBufferOf<*const c_char>` get distinct names.
+ */
+typedef const char *SignalCStringPtr;
 
 typedef struct {
   const SignalComparableBackup *raw;
@@ -234,10 +250,164 @@ typedef struct {
   SignalTestingIntBox *raw;
 } SignalMutPointerTestingIntBox;
 
+typedef enum {
+  SignalMyRemoteDeriveEnumFfiResultUnit,
+  SignalMyRemoteDeriveEnumFfiResultTuple,
+  SignalMyRemoteDeriveEnumFfiResultRecord,
+} SignalMyRemoteDeriveEnumFfiResult_Tag;
+
+typedef struct {
+  int32_t _0;
+  int32_t _1;
+} SignalMyRemoteDeriveEnumFfiResultSignalTuple_Body;
+
+typedef struct {
+  SignalCStringPtr x;
+  int32_t y;
+} SignalMyRemoteDeriveEnumFfiResultSignalRecord_Body;
+
+typedef struct {
+  SignalMyRemoteDeriveEnumFfiResult_Tag tag;
+  union {
+    SignalMyRemoteDeriveEnumFfiResultSignalTuple_Body tuple;
+    SignalMyRemoteDeriveEnumFfiResultSignalRecord_Body record;
+  };
+} SignalMyRemoteDeriveEnumFfiResult;
+
+typedef enum {
+  SignalMyRemoteDeriveEnumFfiArgUnit,
+  SignalMyRemoteDeriveEnumFfiArgTuple,
+  SignalMyRemoteDeriveEnumFfiArgRecord,
+} SignalMyRemoteDeriveEnumFfiArg_Tag;
+
+typedef struct {
+  int32_t _0;
+  int32_t _1;
+} SignalMyRemoteDeriveEnumFfiArgSignalTuple_Body;
+
+typedef struct {
+  const char *x;
+  int32_t y;
+} SignalMyRemoteDeriveEnumFfiArgSignalRecord_Body;
+
+typedef struct {
+  SignalMyRemoteDeriveEnumFfiArg_Tag tag;
+  union {
+    SignalMyRemoteDeriveEnumFfiArgSignalTuple_Body tuple;
+    SignalMyRemoteDeriveEnumFfiArgSignalRecord_Body record;
+  };
+} SignalMyRemoteDeriveEnumFfiArg;
+
+typedef struct {
+  int32_t x;
+  int32_t y;
+} SignalMyRemoteDeriveStructFfiResult;
+
+typedef struct {
+  int32_t x;
+  int32_t y;
+} SignalMyRemoteDeriveStructFfiArg;
+
+typedef struct {
+  int32_t _0;
+  int32_t _1;
+} SignalMyTestPointFfiResult;
+
+typedef struct {
+  int32_t my_numeric_field;
+  SignalCStringPtr my_string_field;
+} SignalMyTestStructFfiResult;
+
+typedef enum {
+  SignalMyTestEnumFfiResultUnit,
+  SignalMyTestEnumFfiResultSingle,
+  SignalMyTestEnumFfiResultSingleNamed,
+  SignalMyTestEnumFfiResultDouble,
+  SignalMyTestEnumFfiResultRecord,
+} SignalMyTestEnumFfiResult_Tag;
+
+typedef struct {
+  int32_t _0;
+} SignalMyTestEnumFfiResultSignalSingle_Body;
+
+typedef struct {
+  int32_t x;
+} SignalMyTestEnumFfiResultSignalSingleNamed_Body;
+
+typedef struct {
+  int32_t _0;
+  int32_t _1;
+} SignalMyTestEnumFfiResultSignalDouble_Body;
+
+typedef struct {
+  SignalCStringPtr person_name;
+  int32_t person_age;
+  SignalMyTestPointFfiResult position;
+  SignalMyTestStructFfiResult fun_struct;
+} SignalMyTestEnumFfiResultSignalRecord_Body;
+
+typedef struct {
+  SignalMyTestEnumFfiResult_Tag tag;
+  union {
+    SignalMyTestEnumFfiResultSignalSingle_Body single;
+    SignalMyTestEnumFfiResultSignalSingleNamed_Body single_named;
+    SignalMyTestEnumFfiResultSignalDouble_Body double_;
+    SignalMyTestEnumFfiResultSignalRecord_Body record;
+  };
+} SignalMyTestEnumFfiResult;
+
+typedef struct {
+  int32_t _0;
+  int32_t _1;
+} SignalMyTestPointFfiArg;
+
+typedef struct {
+  int32_t my_numeric_field;
+  const char *my_string_field;
+} SignalMyTestStructFfiArg;
+
+typedef enum {
+  SignalMyTestEnumFfiArgUnit,
+  SignalMyTestEnumFfiArgSingle,
+  SignalMyTestEnumFfiArgSingleNamed,
+  SignalMyTestEnumFfiArgDouble,
+  SignalMyTestEnumFfiArgRecord,
+} SignalMyTestEnumFfiArg_Tag;
+
+typedef struct {
+  int32_t _0;
+} SignalMyTestEnumFfiArgSignalSingle_Body;
+
+typedef struct {
+  int32_t x;
+} SignalMyTestEnumFfiArgSignalSingleNamed_Body;
+
+typedef struct {
+  int32_t _0;
+  int32_t _1;
+} SignalMyTestEnumFfiArgSignalDouble_Body;
+
+typedef struct {
+  const char *person_name;
+  int32_t person_age;
+  SignalMyTestPointFfiArg position;
+  SignalMyTestStructFfiArg fun_struct;
+} SignalMyTestEnumFfiArgSignalRecord_Body;
+
+typedef struct {
+  SignalMyTestEnumFfiArg_Tag tag;
+  union {
+    SignalMyTestEnumFfiArgSignalSingle_Body single;
+    SignalMyTestEnumFfiArgSignalSingleNamed_Body single_named;
+    SignalMyTestEnumFfiArgSignalDouble_Body double_;
+    SignalMyTestEnumFfiArgSignalRecord_Body record;
+  };
+} SignalMyTestEnumFfiArg;
+
 typedef struct {
   int32_t first;
-  const char *second;
-} SignalPairOfi32c_char;
+  SignalCStringPtr second;
+} SignalPairOfi32CStringPtr;
 
 typedef struct {
   const SignalTestingSemaphore *raw;
@@ -261,7 +431,7 @@ typedef struct {
 
 SignalFfiError *signal_comparable_backup_destroy(SignalMutPointerComparableBackup p);
 
-SignalFfiError *signal_comparable_backup_get_comparable_string(const char **out, SignalConstPointerComparableBackup backup);
+SignalFfiError *signal_comparable_backup_get_comparable_string(SignalCStringPtr *out, SignalConstPointerComparableBackup backup);
 
 SignalFfiError *signal_comparable_backup_get_unknown_fields(SignalStringArray *out, SignalConstPointerComparableBackup backup);
 
@@ -283,7 +453,7 @@ SignalFfiError *signal_test_only_fn_returns_123(uint32_t *out);
 
 SignalFfiError *signal_testing_NonSuspendingBackgroundThreadRuntime_destroy(SignalMutPointerNonSuspendingBackgroundThreadRuntime p);
 
-SignalFfiError *signal_testing_bridged_string_map_dump_to_json(const char **out, SignalConstPointerBridgedStringMap map);
+SignalFfiError *signal_testing_bridged_string_map_dump_to_json(SignalCStringPtr *out, SignalConstPointerBridgedStringMap map);
 
 SignalFfiError *signal_testing_cdsi_lookup_error_convert(const char *error_description);
 
@@ -295,11 +465,11 @@ SignalFfiError *signal_testing_chat_request_get_body(SignalOwnedBuffer *out, Sig
 
 SignalFfiError *signal_testing_chat_request_get_header_names(SignalStringArray *out, SignalConstPointerHttpRequest request);
 
-SignalFfiError *signal_testing_chat_request_get_header_value(const char **out, SignalConstPointerHttpRequest request, const char *header_name);
+SignalFfiError *signal_testing_chat_request_get_header_value(SignalCStringPtr *out, SignalConstPointerHttpRequest request, const char *header_name);
 
-SignalFfiError *signal_testing_chat_request_get_method(const char **out, SignalConstPointerHttpRequest request);
+SignalFfiError *signal_testing_chat_request_get_method(SignalCStringPtr *out, SignalConstPointerHttpRequest request);
 
-SignalFfiError *signal_testing_chat_request_get_path(const char **out, SignalConstPointerHttpRequest request);
+SignalFfiError *signal_testing_chat_request_get_path(SignalCStringPtr *out, SignalConstPointerHttpRequest request);
 
 SignalFfiError *signal_testing_chat_response_convert(SignalFfiChatResponse *out, bool body_present);
 
@@ -309,35 +479,39 @@ SignalFfiError *signal_testing_connection_manager_is_using_proxy(int32_t *out, S
 
 SignalFfiError *signal_testing_conversion_bool_identity(bool *out, bool x);
 
-SignalFfiError *signal_testing_conversion_bool_to_string(const char **out, bool x);
+SignalFfiError *signal_testing_conversion_bool_to_string(SignalCStringPtr *out, bool x);
 
 SignalFfiError *signal_testing_conversion_data_identity(SignalOwnedBuffer *out, SignalBorrowedBuffer x);
 
-SignalFfiError *signal_testing_conversion_data_to_string(const char **out, SignalBorrowedBuffer x);
+SignalFfiError *signal_testing_conversion_data_to_string(SignalCStringPtr *out, SignalBorrowedBuffer x);
+
+SignalFfiError *signal_testing_conversion_data_vec_u8_identity(SignalOwnedBuffer *out, SignalBorrowedBuffer x);
+
+SignalFfiError *signal_testing_conversion_data_vec_u8_to_string(SignalCStringPtr *out, SignalBorrowedBuffer x);
 
 SignalFfiError *signal_testing_conversion_i32_identity(int32_t *out, int32_t x);
 
-SignalFfiError *signal_testing_conversion_i32_to_string(const char **out, int32_t x);
+SignalFfiError *signal_testing_conversion_i32_to_string(SignalCStringPtr *out, int32_t x);
 
 SignalFfiError *signal_testing_conversion_service_id_identity(SignalServiceIdFixedWidthBinaryBytes *out, const SignalServiceIdFixedWidthBinaryBytes *x);
 
-SignalFfiError *signal_testing_conversion_service_id_to_string(const char **out, const SignalServiceIdFixedWidthBinaryBytes *x);
+SignalFfiError *signal_testing_conversion_service_id_to_string(SignalCStringPtr *out, const SignalServiceIdFixedWidthBinaryBytes *x);
 
-SignalFfiError *signal_testing_conversion_string_identity(const char **out, const char *x);
+SignalFfiError *signal_testing_conversion_string_identity(SignalCStringPtr *out, const char *x);
 
 SignalFfiError *signal_testing_conversion_u16_identity(uint16_t *out, uint16_t x);
 
-SignalFfiError *signal_testing_conversion_u16_to_string(const char **out, uint16_t x);
+SignalFfiError *signal_testing_conversion_u16_to_string(SignalCStringPtr *out, uint16_t x);
 
 SignalFfiError *signal_testing_conversion_u8_identity(uint8_t *out, uint8_t x);
 
-SignalFfiError *signal_testing_conversion_u8_to_string(const char **out, uint8_t x);
+SignalFfiError *signal_testing_conversion_u8_to_string(SignalCStringPtr *out, uint8_t x);
 
 SignalFfiError *signal_testing_convert_optional_uuid(SignalOptionalUuid *out, bool present);
 
-SignalFfiError *signal_testing_create_otp(const char **out, const char *username, SignalBorrowedBuffer secret);
+SignalFfiError *signal_testing_create_otp(SignalCStringPtr *out, const char *username, SignalBorrowedBuffer secret);
 
-SignalFfiError *signal_testing_create_otp_from_base64(const char **out, const char *username, const char *secret);
+SignalFfiError *signal_testing_create_otp_from_base64(SignalCStringPtr *out, const char *username, const char *secret);
 
 SignalFfiError *signal_testing_enable_deterministic_rng_for_testing(void);
 
@@ -365,7 +539,7 @@ SignalFfiError *signal_testing_fake_chat_connection_take_remote(SignalMutPointer
 
 SignalFfiError *signal_testing_fake_chat_connection_take_unauthenticated_chat(SignalMutPointerUnauthenticatedChatConnection *out, SignalConstPointerFakeChatConnection chat);
 
-SignalFfiError *signal_testing_fake_chat_remote_end_binproto_to_json(const char **out, const char *name, SignalBorrowedBuffer input);
+SignalFfiError *signal_testing_fake_chat_remote_end_binproto_to_json(SignalCStringPtr *out, const char *name, SignalBorrowedBuffer input);
 
 SignalFfiError *signal_testing_fake_chat_remote_end_grpc_frame_for_message_length(SignalOwnedBuffer *out, uint32_t len);
 
@@ -429,7 +603,27 @@ SignalFfiError *signal_testing_key_trans_non_fatal_verification_failure(void);
 
 SignalFfiError *signal_testing_key_trans_stored_account_data(SignalOwnedBuffer *out);
 
-SignalFfiError *signal_testing_other_testing_handle_type_get_value(const char **out, SignalConstPointerOtherTestingHandleType handle);
+SignalFfiError *signal_testing_my_remote_derive_enum_identity(SignalMyRemoteDeriveEnumFfiResult *out, SignalMyRemoteDeriveEnumFfiArg x);
+
+SignalFfiError *signal_testing_my_remote_derive_struct_identity(SignalMyRemoteDeriveStructFfiResult *out, SignalMyRemoteDeriveStructFfiArg x);
+
+SignalFfiError *signal_testing_my_simple_test_enum_identity(SignalMySimpleTestEnumFfiResult *out, SignalMySimpleTestEnumFfiArg x);
+
+SignalFfiError *signal_testing_my_simple_test_enum_to_string(SignalCStringPtr *out, SignalMySimpleTestEnumFfiArg x);
+
+SignalFfiError *signal_testing_my_test_enum_identity(SignalMyTestEnumFfiResult *out, SignalMyTestEnumFfiArg x);
+
+SignalFfiError *signal_testing_my_test_enum_to_string(SignalCStringPtr *out, SignalMyTestEnumFfiArg x);
+
+SignalFfiError *signal_testing_my_test_point_identity(SignalMyTestPointFfiResult *out, SignalMyTestPointFfiArg x);
+
+SignalFfiError *signal_testing_my_test_point_to_string(SignalCStringPtr *out, SignalMyTestPointFfiArg x);
+
+SignalFfiError *signal_testing_my_test_struct_identity(SignalMyTestStructFfiResult *out, SignalMyTestStructFfiArg x);
+
+SignalFfiError *signal_testing_my_test_struct_to_string(SignalCStringPtr *out, SignalMyTestStructFfiArg x);
+
+SignalFfiError *signal_testing_other_testing_handle_type_get_value(SignalCStringPtr *out, SignalConstPointerOtherTestingHandleType handle);
 
 SignalFfiError *signal_testing_panic_in_body_async(const void *_input);
 
@@ -477,7 +671,7 @@ SignalFfiError *signal_testing_registration_service_update_session_error_convert
 
 SignalFfiError *signal_testing_registration_session_info_convert(SignalMutPointerRegistrationSession *out);
 
-SignalFfiError *signal_testing_return_pair(SignalPairOfi32c_char *out);
+SignalFfiError *signal_testing_return_pair(SignalPairOfi32CStringPtr *out);
 
 SignalFfiError *signal_testing_return_string_array(SignalStringArray *out);
 

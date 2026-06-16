@@ -8,6 +8,7 @@ use std::panic::RefUnwindSafe;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use libsignal_core::LogSafeDisplay as _;
 use libsignal_net::connect_state::{
     ConnectState, ConnectionResources, DefaultConnectorFactory, PreconnectingFactory,
     SUGGESTED_CONNECT_CONFIG, SUGGESTED_TLS_PRECONNECT_LIFETIME,
@@ -24,12 +25,13 @@ use libsignal_net::infra::{AsHttpHeader as _, EnableDomainFronting, OverrideNagl
 use rand::TryRngCore as _;
 
 pub use self::remote_config::BuildVariant;
-use self::remote_config::{RemoteConfig, RemoteConfigKey};
+use self::remote_config::RemoteConfig;
 use crate::*;
 
 pub mod cdsi;
 pub mod chat;
 pub mod registration;
+pub mod svr2;
 pub mod svrb;
 
 pub use libsignal_net::infra::EnforceMinimumTls;
@@ -180,6 +182,7 @@ impl ConnectionManager {
     }
 
     pub fn set_proxy_mode(&self, proxy_mode: DirectOrProxyMode) {
+        log::info!("set_proxy_mode({})", proxy_mode.log_safe_display());
         let mut guard = self.transport_connector.lock().expect("not poisoned");
         guard.set_proxy_mode(proxy_mode);
     }
@@ -189,44 +192,26 @@ impl ConnectionManager {
         guard.set_invalid();
     }
 
-    #[allow(non_snake_case)]
-    pub fn INTERNAL_TESTING_set_reflector_proxy(&self, enable: bool) {
-        let mut guard = self.transport_connector.lock().expect("not poisoned");
-        let current = guard.proxy();
-        let current_is_direct = matches!(current, Ok(DirectOrProxyMode::DirectOnly));
-        let current_is_reflector = current.is_ok_and(DirectOrProxyMode::is_reflector_proxy);
-
-        if (enable && !current_is_direct) || (!enable && !current_is_reflector) {
-            log::info!(
-                "INTERNAL_TESTING_set_reflector_proxy({enable}): another proxy mode is set; leaving it in place"
+    /// Resets the route configuration to include or exclude censorship circumvention routes.
+    ///
+    /// This is not itself a network change event; existing working connections are expected to
+    /// continue to work, and existing failing connections will continue to fail.
+    pub fn set_censorship_circumvention_enabled(&self, enable: bool) {
+        let reflector_proxies = enable.then(|| {
+            let providers = (self.env.reflector_providers)();
+            assert!(
+                !providers.is_empty(),
+                // This is not *technically* true, because the `localhost_test_env_with_ports` contains an emptly list
+                // of reflector providers, but that's only used in tests.
+                "reflector providers are configured at compile time, so they should never be empty"
             );
-            return;
-        }
-
-        if !enable {
-            // Reflector proxy can only be enabled from DirectOnly, so disabling
-            // always returns to DirectOnly.
-            guard.set_proxy_mode(DirectOrProxyMode::DirectOnly);
-            return;
-        }
-
-        let providers = (self.env.reflector_providers)();
-        if providers.is_empty() {
-            log::error!("reflector providers unavailable; marking proxy invalid");
-            guard.set_invalid();
-            return;
-        }
-        let force_cc = self
-            .remote_config
+            ConnectionProxyConfig::Reflector(providers)
+        });
+        log::info!("set_censorship_circumvention_enabled({enable})");
+        self.transport_connector
             .lock()
             .expect("not poisoned")
-            .is_enabled(RemoteConfigKey::ForceReflectorsProxyOnlyForTesting);
-        let proxy = ConnectionProxyConfig::Reflector(providers);
-        guard.set_proxy_mode(if force_cc {
-            DirectOrProxyMode::ProxyOnly(proxy)
-        } else {
-            DirectOrProxyMode::DirectThenProxy(proxy)
-        });
+            .set_reflector(reflector_proxies);
     }
 
     pub fn is_using_proxy(&self) -> Result<bool, InvalidProxyConfig> {
@@ -244,15 +229,6 @@ impl ConnectionManager {
             .expect("not poisoned")
             .route_resolver
             .allow_ipv6 = ipv6_enabled;
-    }
-
-    /// Resets the endpoint connections to include or exclude censorship circumvention routes.
-    ///
-    /// This is not itself a network change event; existing working connections are expected to
-    /// continue to work, and existing failing connections will continue to fail.
-    pub fn set_censorship_circumvention_enabled(&self, enabled: bool) {
-        let new_endpoints = EndpointConnections::new(&self.env, enabled, EnforceMinimumTls::Yes);
-        *self.endpoints.lock().expect("not poisoned") = Arc::new(new_endpoints);
     }
 
     pub fn set_remote_config(
@@ -392,7 +368,7 @@ mod test {
         "reflector-signal.global.ssl.fastly.net"
         ; "prod"
     )]
-    fn reflector_proxy_uses_environment_specific_routes(
+    fn censorship_circumvention_uses_environment_specific_routes(
         env: Environment,
         expected_endpoint: &str,
         expected_http_host: &str,
@@ -403,7 +379,7 @@ mod test {
             Default::default(),
             BuildVariant::Production,
         );
-        cm.INTERNAL_TESTING_set_reflector_proxy(true);
+        cm.set_censorship_circumvention_enabled(true);
 
         let guard = cm.transport_connector.lock().expect("not poisoned");
         let proxy_mode = guard.proxy().expect("valid proxy config");
@@ -416,7 +392,7 @@ mod test {
     }
 
     #[test_matrix((true, false))]
-    fn reflector_proxy_toggle_does_not_disturb_existing_http_proxy(enable: bool) {
+    fn censorship_circumvention_toggle_does_not_disturb_existing_http_proxy(enable: bool) {
         use libsignal_net::infra::host::Host;
         use libsignal_net::infra::route::HttpProxy;
         use nonzero_ext::nonzero;
@@ -437,7 +413,7 @@ mod test {
         });
         cm.set_proxy_mode(DirectOrProxyMode::DirectThenProxy(http_proxy));
 
-        cm.INTERNAL_TESTING_set_reflector_proxy(enable);
+        cm.set_censorship_circumvention_enabled(enable);
         let guard = cm.transport_connector.lock().expect("not poisoned");
         assert_matches!(
             guard.proxy().expect("valid proxy config"),
@@ -446,7 +422,7 @@ mod test {
     }
 
     #[test_matrix([true, false])]
-    fn reflector_proxy_toggle_does_not_disturb_invalid_proxy_state(enable: bool) {
+    fn censorship_circumvention_proxy_toggle_does_not_disturb_invalid_proxy_state(enable: bool) {
         let cm = ConnectionManager::new(
             Environment::Prod,
             "test-user-agent",
@@ -455,7 +431,7 @@ mod test {
         );
         cm.set_invalid_proxy();
 
-        cm.INTERNAL_TESTING_set_reflector_proxy(enable);
+        cm.set_censorship_circumvention_enabled(enable);
         assert_matches!(
             cm.transport_connector.lock().expect("not poisoned").proxy(),
             Err(_)
@@ -463,18 +439,64 @@ mod test {
     }
 
     #[test]
-    fn reflector_proxy_disable_sets_direct_only() {
+    fn censorship_circumvention_proxy_disable_sets_direct_only() {
         let cm = ConnectionManager::new(
             Environment::Prod,
             "test-user-agent",
             Default::default(),
             BuildVariant::Production,
         );
-        cm.INTERNAL_TESTING_set_reflector_proxy(true);
-        cm.INTERNAL_TESTING_set_reflector_proxy(false);
+        cm.set_censorship_circumvention_enabled(true);
+        cm.set_censorship_circumvention_enabled(false);
 
         let guard = cm.transport_connector.lock().expect("not poisoned");
         assert_matches!(guard.proxy(), Ok(DirectOrProxyMode::DirectOnly));
+    }
+
+    #[test]
+    fn censorship_circumvention_survives_explicit_proxy_set_then_clear() {
+        use libsignal_net::infra::host::Host;
+        use libsignal_net::infra::route::HttpProxy;
+        use nonzero_ext::nonzero;
+
+        let cm = ConnectionManager::new(
+            Environment::Prod,
+            "test-user-agent",
+            Default::default(),
+            BuildVariant::Production,
+        );
+
+        cm.set_censorship_circumvention_enabled(true);
+
+        // An explicit user proxy takes precedence over the reflector.
+        cm.set_proxy_mode(DirectOrProxyMode::DirectThenProxy(
+            ConnectionProxyConfig::Http(HttpProxy {
+                proxy_host: Host::Domain(Arc::from("proxy.example.com")),
+                proxy_port: nonzero!(8080_u16),
+                proxy_tls: None,
+                proxy_authorization: None,
+                resolve_hostname_locally: false,
+            }),
+        ));
+        assert_matches!(
+            cm.transport_connector
+                .lock()
+                .expect("not poisoned")
+                .proxy()
+                .expect("valid proxy config"),
+            DirectOrProxyMode::DirectThenProxy(ConnectionProxyConfig::Http(_))
+        );
+
+        // ... but clearing it falls back to the reflector.
+        cm.set_proxy_mode(DirectOrProxyMode::DirectOnly);
+        assert_matches!(
+            cm.transport_connector
+                .lock()
+                .expect("not poisoned")
+                .proxy()
+                .expect("valid proxy config"),
+            DirectOrProxyMode::DirectThenProxy(ConnectionProxyConfig::Reflector(_))
+        );
     }
 
     // Normally we would write this test in the app languages, but it depends on timeouts.

@@ -39,13 +39,20 @@ use crate::support::{
 #[cfg(feature = "metadata")]
 mod metadata {
     use super::*;
+    use crate::metadata::NiceType;
     pub use crate::metadata::node::*;
 
     pub trait NiceArgConverter {
         fn register_ts_arg_converter(ctx: &mut TsMetadataContext) -> TsArgConverter;
+        fn register_ts_nice_type(ctx: &mut TsMetadataContext) -> NiceType {
+            Self::register_ts_arg_converter(ctx).nice_type
+        }
     }
     pub trait NiceResultConverter {
         fn register_ts_result_converter(ctx: &mut TsMetadataContext) -> TsReturnConverter;
+        fn register_ts_nice_type(ctx: &mut TsMetadataContext) -> NiceType {
+            Self::register_ts_result_converter(ctx).nice_type
+        }
     }
 
     pub fn make_array_type<'a, T: ResultTypeInfo<'a>>(ctx: &mut TsMetadataContext) -> String {
@@ -450,6 +457,17 @@ impl SimpleArgTypeInfo for RandomNumberGenerator {
     }
     register_ts_ffi_type!("RandomNumberGenerator");
 }
+#[cfg(feature = "metadata")]
+impl NiceArgConverter for RandomNumberGenerator {
+    fn register_ts_arg_converter(_ctx: &mut TsMetadataContext) -> TsArgConverter {
+        TsArgConverter {
+            nice_type: "(Rng | undefined)".to_string(),
+            ffi_type: "RandomNumberGenerator".to_string(),
+            converter_function: "(__rng) => __rng?.__deterministicRngSeedForTesting ?? -1"
+                .to_string(),
+        }
+    }
+}
 
 /// Converts non-negative numbers up to [`Number.MAX_SAFE_INTEGER`][].
 ///
@@ -732,11 +750,14 @@ impl SimpleArgTypeInfo for libsignal_net_chat::api::messages::MultiRecipientSend
 }
 
 macro_rules! zkgroup_serialize_type {
-    ($($ty:ty),*$(,)?) => {$(
+    ($ty:ty, $cls:expr) => {
         impl SimpleArgTypeInfo for $ty {
             type ArgType = JsUint8Array;
 
-            fn convert_from(cx: &mut FunctionContext, foreign: Handle<Self::ArgType>) -> NeonResult<Self> {
+            fn convert_from(
+                cx: &mut FunctionContext,
+                foreign: Handle<Self::ArgType>,
+            ) -> NeonResult<Self> {
                 let elements = foreign.downcast_or_throw::<JsUint8Array, _>(cx)?;
                 let bytes = elements.as_slice(cx);
                 zkgroup::deserialize(bytes).or_else(|_: ZkGroupDeserializationFailure| {
@@ -745,11 +766,28 @@ macro_rules! zkgroup_serialize_type {
             }
             register_ts_ffi_type!("Uint8Array<ArrayBuffer>");
         }
-    )*};
+
+        #[cfg(feature = "metadata")]
+        impl NiceArgConverter for $ty {
+            fn register_ts_arg_converter(_ctx: &mut TsMetadataContext) -> TsArgConverter {
+                TsArgConverter {
+                    nice_type: format!("zkgroup.{}", $cls),
+                    ffi_type: "Uint8Array<ArrayBuffer>".to_string(),
+                    converter_function: "ByteArray.prototype.getContents.call".to_string(),
+                }
+            }
+        }
+    };
 }
-zkgroup_serialize_type!(GroupSendFullToken);
-zkgroup_serialize_type!(zkgroup::backups::BackupAuthCredential);
-zkgroup_serialize_type!(zkgroup::generic_server_params::GenericServerPublicParams);
+zkgroup_serialize_type!(GroupSendFullToken, "GroupSendFullToken");
+zkgroup_serialize_type!(
+    zkgroup::backups::BackupAuthCredential,
+    "BackupAuthCredential"
+);
+zkgroup_serialize_type!(
+    zkgroup::generic_server_params::GenericServerPublicParams,
+    "GenericServerPublicParams"
+);
 
 // Used for callback results.
 impl SimpleArgTypeInfo for () {
@@ -1127,6 +1165,15 @@ impl<'storage, 'context: 'storage> ArgTypeInfo<'storage, 'context> for Vec<&'sto
     }
     register_ts_ffi_type!("Array<Uint8Array<ArrayBuffer>>");
 }
+
+impl SimpleArgTypeInfo for Vec<u8> {
+    type ArgType = JsUint8Array;
+    fn convert_from(cx: &mut FunctionContext, foreign: Handle<Self::ArgType>) -> NeonResult<Self> {
+        Ok(foreign.as_slice(cx).to_vec())
+    }
+    register_ts_ffi_type!("Uint8Array<ArrayBuffer>");
+}
+nice_identity_arg_converter!(Vec<u8>);
 
 impl SimpleArgTypeInfo for Vec<Vec<u8>> {
     type ArgType = JsArray;
@@ -1533,17 +1580,9 @@ impl<'a> ResultTypeInfo<'a> for UploadForm {
         let key = cx.string(key);
         obj.set(cx, "key", key)?;
         let headers_arr = cx.empty_array();
-        for (i, (k, v)) in headers.iter().enumerate() {
-            let pair = cx.empty_array();
-            let k = cx.string(k);
-            let v = cx.string(v);
-            pair.set(cx, 0, k)?;
-            pair.set(cx, 1, v)?;
-            headers_arr.set(
-                cx,
-                u32::try_from(i).expect("We don't have u32::MAX headers"),
-                pair,
-            )?;
+        for ((k, v), i) in headers.into_iter().zip(0..) {
+            let pair = (k, v).convert_into(cx)?;
+            headers_arr.set(cx, i, pair)?;
         }
         obj.set(cx, "headers", headers_arr)?;
         let signed_upload_url = cx.string(signed_upload_url);
@@ -1551,6 +1590,32 @@ impl<'a> ResultTypeInfo<'a> for UploadForm {
         Ok(obj)
     }
     register_ts_ffi_type!("UploadForm");
+}
+
+impl<'a> ResultTypeInfo<'a> for libsignal_net_chat::api::backups::CdnCredentials {
+    type ResultType = JsArray;
+
+    fn convert_into(self, cx: &mut impl Context<'a>) -> JsResult<'a, Self::ResultType> {
+        let Self { headers } = self;
+        let headers_arr = cx.empty_array();
+        for ((k, v), i) in headers.into_iter().zip(0..) {
+            let pair = (k, v).convert_into(cx)?;
+            headers_arr.set(cx, i, pair)?;
+        }
+        Ok(headers_arr)
+    }
+
+    register_ts_ffi_type!("[[string, string]]");
+}
+#[cfg(feature = "metadata")]
+impl NiceResultConverter for libsignal_net_chat::api::backups::CdnCredentials {
+    fn register_ts_result_converter(_ctx: &mut TsMetadataContext) -> TsReturnConverter {
+        TsReturnConverter {
+            nice_type: "CdnCredentials".to_owned(),
+            ffi_type: "[[string, string]]".to_owned(),
+            converter_function: "cdnCredentialReturnConverter".to_owned(),
+        }
+    }
 }
 
 impl<'a> ResultTypeInfo<'a> for PreKeysResponse {
@@ -1601,6 +1666,16 @@ impl<'a> ResultTypeInfo<'a> for () {
     }
     register_ts_ffi_type!("void");
 }
+#[cfg(feature = "metadata")]
+impl NiceResultConverter for () {
+    fn register_ts_result_converter(_ctx: &mut TsMetadataContext) -> TsReturnConverter {
+        TsReturnConverter {
+            nice_type: "void".to_owned(),
+            ffi_type: "void".to_owned(),
+            converter_function: "identity".to_owned(),
+        }
+    }
+}
 
 impl<'a, A: ResultTypeInfo<'a>, B: ResultTypeInfo<'a>> ResultTypeInfo<'a> for (A, B) {
     type ResultType = JsArray;
@@ -1617,6 +1692,21 @@ impl<'a, A: ResultTypeInfo<'a>, B: ResultTypeInfo<'a>> ResultTypeInfo<'a> for (A
         let a = A::register_ts_ffi_type(ctx);
         let b = B::register_ts_ffi_type(ctx);
         format!("[{a}, {b}]")
+    }
+}
+#[cfg(feature = "metadata")]
+impl<A: NiceResultConverter, B: NiceResultConverter> NiceResultConverter for (A, B) {
+    fn register_ts_result_converter(ctx: &mut TsMetadataContext) -> TsReturnConverter {
+        let a = A::register_ts_result_converter(ctx);
+        let b = B::register_ts_result_converter(ctx);
+        TsReturnConverter {
+            nice_type: format!("[{}, {}]", a.nice_type, b.nice_type),
+            ffi_type: format!("[{}, {}]", a.ffi_type, b.ffi_type),
+            converter_function: format!(
+                "([a, b]) => [({})(a), ({})(b)]",
+                a.converter_function, b.converter_function
+            ),
+        }
     }
 }
 

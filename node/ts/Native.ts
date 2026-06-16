@@ -143,12 +143,137 @@ export const enum LogLevel {
   Trace,
 }
 
+export type ReturnFfiMyRemoteDeriveEnum =
+  | {
+      __type: 0;
+    }
+  | {
+      __type: 1;
+      _0: number;
+      _1: number;
+    }
+  | {
+      __type: 2;
+      x: string;
+      y: number;
+    };
+
+export type ReturnFfiMyRemoteDeriveStruct = {
+  x: number;
+  y: number;
+};
+
+export type ReturnFfiMySimpleTestEnum =
+  | {
+      __type: 0;
+    }
+  | {
+      __type: 1;
+    };
+
+export type ReturnFfiMyTestEnum =
+  | {
+      __type: 0;
+    }
+  | {
+      __type: 1;
+      _0: number;
+    }
+  | {
+      __type: 2;
+      x: number;
+    }
+  | {
+      __type: 3;
+      _0: number;
+      _1: number;
+    }
+  | {
+      __type: 4;
+      person_name: string;
+      person_age: number;
+      position: ReturnFfiMyTestPoint;
+      fun_struct: ReturnFfiMyTestStruct;
+    };
+
+export type ReturnFfiMyTestPoint = {
+  _0: number;
+  _1: number;
+};
+
+export type ReturnFfiMyTestStruct = {
+  my_numeric_field: number;
+  my_string_field: string;
+};
+
+export type ArgFfiMyRemoteDeriveEnum =
+  | {
+      __type: 0;
+    }
+  | {
+      __type: 1;
+      _0: number;
+      _1: number;
+    }
+  | {
+      __type: 2;
+      x: string;
+      y: number;
+    };
+
+export type ArgFfiMyRemoteDeriveStruct = {
+  x: number;
+  y: number;
+};
+
+export type ArgFfiMySimpleTestEnum =
+  | {
+      __type: 0;
+    }
+  | {
+      __type: 1;
+    };
+
+export type ArgFfiMyTestEnum =
+  | {
+      __type: 0;
+    }
+  | {
+      __type: 1;
+      _0: number;
+    }
+  | {
+      __type: 2;
+      x: number;
+    }
+  | {
+      __type: 3;
+      _0: number;
+      _1: number;
+    }
+  | {
+      __type: 4;
+      person_name: string;
+      person_age: number;
+      position: ArgFfiMyTestPoint;
+      fun_struct: ArgFfiMyTestStruct;
+    };
+
+export type ArgFfiMyTestPoint = {
+  _0: number;
+  _1: number;
+};
+
+export type ArgFfiMyTestStruct = {
+  my_numeric_field: number;
+  my_string_field: string;
+};
+
 /* eslint-disable comma-dangle */
 export const NetRemoteConfigKeys = [
   'chatRequestConnectionCheckTimeoutMillis',
   'useH2ForUnauthChat',
   'useH2ForAuthChat',
-  'forceReflectorsProxyOnlyForTesting',
   'grpc.AccountsAnonymousLookupUsernameHash',
   'grpc.AccountsAnonymousLookupUsernameLink.2',
   'grpc.AccountsAnonymousCheckAccountExistence.2',
@@ -495,10 +620,6 @@ type NativeFunctions = {
     len: bigint,
     purpose: number
   ) => Promise<ComparableBackup>;
-  ConnectionManager_INTERNAL_TESTING_set_reflector_proxy: (
-    connection_manager: Wrapper<ConnectionManager>,
-    enabled: boolean
-  ) => void;
   ConnectionManager_clear_proxy: (
     connection_manager: Wrapper<ConnectionManager>
   ) => void;
@@ -1784,6 +1905,35 @@ type NativeFunctions = {
     attestation_msg: Uint8Array<ArrayBuffer>,
     current_timestamp: Timestamp
   ) => SgxClientState;
+  Svr2_Delete: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    connection_manager: Wrapper<ConnectionManager>,
+    username: string,
+    password: string
+  ) => CancellablePromise<void>;
+  Svr2_FinishBackup: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    session: Wrapper<Svr2BackupSession>,
+    connection_manager: Wrapper<ConnectionManager>,
+    username: string,
+    password: string
+  ) => CancellablePromise<void>;
+  Svr2_Restore: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    pin: Uint8Array<ArrayBuffer>,
+    connection_manager: Wrapper<ConnectionManager>,
+    username: string,
+    password: string
+  ) => CancellablePromise<[Uint8Array<ArrayBuffer>, number]>;
+  Svr2_StartBackup: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    pin: Uint8Array<ArrayBuffer>,
+    data: Uint8Array<ArrayBuffer>,
+    max_tries: number,
+    connection_manager: Wrapper<ConnectionManager>,
+    username: string,
+    password: string
+  ) => CancellablePromise<Svr2BackupSession>;
   TESTING_BridgedStringMap_dump_to_json: (
     map: Wrapper<BridgedStringMap>
   ) => string;
@@ -1955,6 +2105,40 @@ type NativeFunctions = {
   TESTING_KeyTransFatalVerificationFailure: () => void;
   TESTING_KeyTransNonFatalVerificationFailure: () => void;
   TESTING_KeyTransStoredAccountData: () => Uint8Array<ArrayBuffer>;
+  TESTING_MyRemoteDeriveEnum_identity: (
+    x: ArgFfiMyRemoteDeriveEnum
+  ) => ReturnFfiMyRemoteDeriveEnum;
+  TESTING_MyRemoteDeriveStruct_identity: (
+    x: ArgFfiMyRemoteDeriveStruct
+  ) => ReturnFfiMyRemoteDeriveStruct;
+  TESTING_MySimpleTestEnum_identity: (
+    x: ArgFfiMySimpleTestEnum
+  ) => ReturnFfiMySimpleTestEnum;
+  TESTING_MySimpleTestEnum_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: ArgFfiMySimpleTestEnum
+  ) => CancellablePromise<ReturnFfiMySimpleTestEnum>;
+  TESTING_MySimpleTestEnum_to_string: (x: ArgFfiMySimpleTestEnum) => string;
+  TESTING_MyTestEnum_identity: (x: ArgFfiMyTestEnum) => ReturnFfiMyTestEnum;
+  TESTING_MyTestEnum_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: ArgFfiMyTestEnum
+  ) => CancellablePromise<ReturnFfiMyTestEnum>;
+  TESTING_MyTestEnum_to_string: (x: ArgFfiMyTestEnum) => string;
+  TESTING_MyTestPoint_identity: (x: ArgFfiMyTestPoint) => ReturnFfiMyTestPoint;
+  TESTING_MyTestPoint_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: ArgFfiMyTestPoint
+  ) => CancellablePromise<ReturnFfiMyTestPoint>;
+  TESTING_MyTestPoint_to_string: (x: ArgFfiMyTestPoint) => string;
+  TESTING_MyTestStruct_identity: (
+    x: ArgFfiMyTestStruct
+  ) => ReturnFfiMyTestStruct;
+  TESTING_MyTestStruct_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: ArgFfiMyTestStruct
+  ) => CancellablePromise<ReturnFfiMyTestStruct>;
+  TESTING_MyTestStruct_to_string: (x: ArgFfiMyTestStruct) => string;
   TESTING_NonSuspendingBackgroundThreadRuntime_New: () => NonSuspendingBackgroundThreadRuntime;
   TESTING_OtherTestingHandleType_getValue: (
     handle: Wrapper<OtherTestingHandleType>
@@ -2040,24 +2224,62 @@ type NativeFunctions = {
     asyncRuntime: Wrapper<TokioAsyncContext>,
     input: number
   ) => CancellablePromise<number>;
+  TESTING_conversion_Data_VecU8_identity: (
+    x: Uint8Array<ArrayBuffer>
+  ) => Uint8Array<ArrayBuffer>;
+  TESTING_conversion_Data_VecU8_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: Uint8Array<ArrayBuffer>
+  ) => CancellablePromise<Uint8Array<ArrayBuffer>>;
+  TESTING_conversion_Data_VecU8_to_string: (
+    x: Uint8Array<ArrayBuffer>
+  ) => string;
   TESTING_conversion_Data_identity: (
     x: Uint8Array<ArrayBuffer>
   ) => Uint8Array<ArrayBuffer>;
+  TESTING_conversion_Data_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: Uint8Array<ArrayBuffer>
+  ) => CancellablePromise<Uint8Array<ArrayBuffer>>;
   TESTING_conversion_Data_to_string: (x: Uint8Array<ArrayBuffer>) => string;
   TESTING_conversion_ServiceId_identity: (
     x: Uint8Array<ArrayBuffer>
   ) => Uint8Array<ArrayBuffer>;
+  TESTING_conversion_ServiceId_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: Uint8Array<ArrayBuffer>
+  ) => CancellablePromise<Uint8Array<ArrayBuffer>>;
   TESTING_conversion_ServiceId_to_string: (
     x: Uint8Array<ArrayBuffer>
   ) => string;
   TESTING_conversion_bool_identity: (x: boolean) => boolean;
+  TESTING_conversion_bool_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: boolean
+  ) => CancellablePromise<boolean>;
   TESTING_conversion_bool_to_string: (x: boolean) => string;
   TESTING_conversion_i32_identity: (x: number) => number;
+  TESTING_conversion_i32_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: number
+  ) => CancellablePromise<number>;
   TESTING_conversion_i32_to_string: (x: number) => string;
   TESTING_conversion_string_identity: (x: string) => string;
+  TESTING_conversion_string_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: string
+  ) => CancellablePromise<string>;
   TESTING_conversion_u16_identity: (x: number) => number;
+  TESTING_conversion_u16_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: number
+  ) => CancellablePromise<number>;
   TESTING_conversion_u16_to_string: (x: number) => string;
   TESTING_conversion_u8_identity: (x: number) => number;
+  TESTING_conversion_u8_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: number
+  ) => CancellablePromise<number>;
   TESTING_conversion_u8_to_string: (x: number) => string;
   TestingSemaphore_AddPermits: (
     semaphore: Wrapper<TestingSemaphore>,
@@ -2076,6 +2298,23 @@ type NativeFunctions = {
     chat: Wrapper<UnauthenticatedChatConnection>,
     account: Uint8Array<ArrayBuffer>
   ) => CancellablePromise<boolean>;
+  UnauthenticatedChatConnection_backup_delete_all: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    chat: Wrapper<UnauthenticatedChatConnection>,
+    credential: Uint8Array<ArrayBuffer>,
+    server_keys: Uint8Array<ArrayBuffer>,
+    signing_key: Wrapper<PrivateKey>,
+    rng: RandomNumberGenerator
+  ) => CancellablePromise<void>;
+  UnauthenticatedChatConnection_backup_get_cdn_credentials: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    chat: Wrapper<UnauthenticatedChatConnection>,
+    credential: Uint8Array<ArrayBuffer>,
+    server_keys: Uint8Array<ArrayBuffer>,
+    signing_key: Wrapper<PrivateKey>,
+    cdn: number,
+    rng: RandomNumberGenerator
+  ) => CancellablePromise<[[string, string]]>;
   UnauthenticatedChatConnection_backup_get_media_upload_form: (
     asyncRuntime: Wrapper<TokioAsyncContext>,
     chat: Wrapper<UnauthenticatedChatConnection>,
@@ -2085,6 +2324,14 @@ type NativeFunctions = {
     upload_size: bigint,
     rng: RandomNumberGenerator
   ) => CancellablePromise<UploadForm>;
+  UnauthenticatedChatConnection_backup_get_svrb_credentials: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    chat: Wrapper<UnauthenticatedChatConnection>,
+    credential: Uint8Array<ArrayBuffer>,
+    server_keys: Uint8Array<ArrayBuffer>,
+    signing_key: Wrapper<PrivateKey>,
+    rng: RandomNumberGenerator
+  ) => CancellablePromise<[string, string]>;
   UnauthenticatedChatConnection_backup_get_upload_form: (
     asyncRuntime: Wrapper<TokioAsyncContext>,
     chat: Wrapper<UnauthenticatedChatConnection>,
@@ -2094,6 +2341,22 @@ type NativeFunctions = {
     upload_size: bigint,
     rng: RandomNumberGenerator
   ) => CancellablePromise<UploadForm>;
+  UnauthenticatedChatConnection_backup_refresh: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    chat: Wrapper<UnauthenticatedChatConnection>,
+    credential: Uint8Array<ArrayBuffer>,
+    server_keys: Uint8Array<ArrayBuffer>,
+    signing_key: Wrapper<PrivateKey>,
+    rng: RandomNumberGenerator
+  ) => CancellablePromise<void>;
+  UnauthenticatedChatConnection_backup_set_public_key: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    chat: Wrapper<UnauthenticatedChatConnection>,
+    credential: Uint8Array<ArrayBuffer>,
+    server_keys: Uint8Array<ArrayBuffer>,
+    signing_key: Wrapper<PrivateKey>,
+    rng: RandomNumberGenerator
+  ) => CancellablePromise<void>;
   UnauthenticatedChatConnection_connect: (
     asyncRuntime: Wrapper<TokioAsyncContext>,
     connection_manager: Wrapper<ConnectionManager>,
@@ -2339,7 +2602,6 @@ const {
   ComparableBackup_GetComparableString,
   ComparableBackup_GetUnknownFields,
   ComparableBackup_ReadUnencrypted,
-  ConnectionManager_INTERNAL_TESTING_set_reflector_proxy,
   ConnectionManager_clear_proxy,
   ConnectionManager_new,
   ConnectionManager_on_network_change,
@@ -2690,6 +2952,10 @@ const {
   SignedPreKeyRecord_New,
   SignedPreKeyRecord_Serialize,
   Svr2Client_New,
+  Svr2_Delete,
+  Svr2_FinishBackup,
+  Svr2_Restore,
+  Svr2_StartBackup,
   TESTING_BridgedStringMap_dump_to_json,
   TESTING_CdsiLookupErrorConvert,
   TESTING_CdsiLookupResponseConvert,
@@ -2747,6 +3013,20 @@ const {
   TESTING_KeyTransFatalVerificationFailure,
   TESTING_KeyTransNonFatalVerificationFailure,
   TESTING_KeyTransStoredAccountData,
+  TESTING_MyRemoteDeriveEnum_identity,
+  TESTING_MyRemoteDeriveStruct_identity,
+  TESTING_MySimpleTestEnum_identity,
+  TESTING_MySimpleTestEnum_identity_async,
+  TESTING_MySimpleTestEnum_to_string,
+  TESTING_MyTestEnum_identity,
+  TESTING_MyTestEnum_identity_async,
+  TESTING_MyTestEnum_to_string,
+  TESTING_MyTestPoint_identity,
+  TESTING_MyTestPoint_identity_async,
+  TESTING_MyTestPoint_to_string,
+  TESTING_MyTestStruct_identity,
+  TESTING_MyTestStruct_identity_async,
+  TESTING_MyTestStruct_to_string,
   TESTING_NonSuspendingBackgroundThreadRuntime_New,
   TESTING_OtherTestingHandleType_getValue,
   TESTING_PanicInBodyAsync,
@@ -2787,18 +3067,28 @@ const {
   TESTING_TokioAsyncContext_FutureSuccessBytes,
   TESTING_TokioAsyncContext_NewSingleThreaded,
   TESTING_TokioAsyncFuture,
+  TESTING_conversion_Data_VecU8_identity,
+  TESTING_conversion_Data_VecU8_identity_async,
+  TESTING_conversion_Data_VecU8_to_string,
   TESTING_conversion_Data_identity,
+  TESTING_conversion_Data_identity_async,
   TESTING_conversion_Data_to_string,
   TESTING_conversion_ServiceId_identity,
+  TESTING_conversion_ServiceId_identity_async,
   TESTING_conversion_ServiceId_to_string,
   TESTING_conversion_bool_identity,
+  TESTING_conversion_bool_identity_async,
   TESTING_conversion_bool_to_string,
   TESTING_conversion_i32_identity,
+  TESTING_conversion_i32_identity_async,
   TESTING_conversion_i32_to_string,
   TESTING_conversion_string_identity,
+  TESTING_conversion_string_identity_async,
   TESTING_conversion_u16_identity,
+  TESTING_conversion_u16_identity_async,
   TESTING_conversion_u16_to_string,
   TESTING_conversion_u8_identity,
+  TESTING_conversion_u8_identity_async,
   TESTING_conversion_u8_to_string,
   TestingSemaphore_AddPermits,
   TestingSemaphore_New,
@@ -2807,8 +3097,13 @@ const {
   TokioAsyncContext_cancel,
   TokioAsyncContext_new,
   UnauthenticatedChatConnection_account_exists,
+  UnauthenticatedChatConnection_backup_delete_all,
+  UnauthenticatedChatConnection_backup_get_cdn_credentials,
   UnauthenticatedChatConnection_backup_get_media_upload_form,
+  UnauthenticatedChatConnection_backup_get_svrb_credentials,
   UnauthenticatedChatConnection_backup_get_upload_form,
+  UnauthenticatedChatConnection_backup_refresh,
+  UnauthenticatedChatConnection_backup_set_public_key,
   UnauthenticatedChatConnection_connect,
   UnauthenticatedChatConnection_disconnect,
   UnauthenticatedChatConnection_get_pre_keys_access_key_auth,
@@ -2935,7 +3230,6 @@ export {
   ComparableBackup_GetComparableString,
   ComparableBackup_GetUnknownFields,
   ComparableBackup_ReadUnencrypted,
-  ConnectionManager_INTERNAL_TESTING_set_reflector_proxy,
   ConnectionManager_clear_proxy,
   ConnectionManager_new,
   ConnectionManager_on_network_change,
@@ -3286,6 +3580,10 @@ export {
   SignedPreKeyRecord_New,
   SignedPreKeyRecord_Serialize,
   Svr2Client_New,
+  Svr2_Delete,
+  Svr2_FinishBackup,
+  Svr2_Restore,
+  Svr2_StartBackup,
   TESTING_BridgedStringMap_dump_to_json,
   TESTING_CdsiLookupErrorConvert,
   TESTING_CdsiLookupResponseConvert,
@@ -3343,6 +3641,20 @@ export {
   TESTING_KeyTransFatalVerificationFailure,
   TESTING_KeyTransNonFatalVerificationFailure,
   TESTING_KeyTransStoredAccountData,
+  TESTING_MyRemoteDeriveEnum_identity,
+  TESTING_MyRemoteDeriveStruct_identity,
+  TESTING_MySimpleTestEnum_identity,
+  TESTING_MySimpleTestEnum_identity_async,
+  TESTING_MySimpleTestEnum_to_string,
+  TESTING_MyTestEnum_identity,
+  TESTING_MyTestEnum_identity_async,
+  TESTING_MyTestEnum_to_string,
+  TESTING_MyTestPoint_identity,
+  TESTING_MyTestPoint_identity_async,
+  TESTING_MyTestPoint_to_string,
+  TESTING_MyTestStruct_identity,
+  TESTING_MyTestStruct_identity_async,
+  TESTING_MyTestStruct_to_string,
   TESTING_NonSuspendingBackgroundThreadRuntime_New,
   TESTING_OtherTestingHandleType_getValue,
   TESTING_PanicInBodyAsync,
@@ -3383,18 +3695,28 @@ export {
   TESTING_TokioAsyncContext_FutureSuccessBytes,
   TESTING_TokioAsyncContext_NewSingleThreaded,
   TESTING_TokioAsyncFuture,
+  TESTING_conversion_Data_VecU8_identity,
+  TESTING_conversion_Data_VecU8_identity_async,
+  TESTING_conversion_Data_VecU8_to_string,
   TESTING_conversion_Data_identity,
+  TESTING_conversion_Data_identity_async,
   TESTING_conversion_Data_to_string,
   TESTING_conversion_ServiceId_identity,
+  TESTING_conversion_ServiceId_identity_async,
   TESTING_conversion_ServiceId_to_string,
   TESTING_conversion_bool_identity,
+  TESTING_conversion_bool_identity_async,
   TESTING_conversion_bool_to_string,
   TESTING_conversion_i32_identity,
+  TESTING_conversion_i32_identity_async,
   TESTING_conversion_i32_to_string,
   TESTING_conversion_string_identity,
+  TESTING_conversion_string_identity_async,
   TESTING_conversion_u16_identity,
+  TESTING_conversion_u16_identity_async,
   TESTING_conversion_u16_to_string,
   TESTING_conversion_u8_identity,
+  TESTING_conversion_u8_identity_async,
   TESTING_conversion_u8_to_string,
   TestingSemaphore_AddPermits,
   TestingSemaphore_New,
@@ -3403,8 +3725,13 @@ export {
   TokioAsyncContext_cancel,
   TokioAsyncContext_new,
   UnauthenticatedChatConnection_account_exists,
+  UnauthenticatedChatConnection_backup_delete_all,
+  UnauthenticatedChatConnection_backup_get_cdn_credentials,
   UnauthenticatedChatConnection_backup_get_media_upload_form,
+  UnauthenticatedChatConnection_backup_get_svrb_credentials,
   UnauthenticatedChatConnection_backup_get_upload_form,
+  UnauthenticatedChatConnection_backup_refresh,
+  UnauthenticatedChatConnection_backup_set_public_key,
   UnauthenticatedChatConnection_connect,
   UnauthenticatedChatConnection_disconnect,
   UnauthenticatedChatConnection_get_pre_keys_access_key_auth,
@@ -3742,6 +4069,9 @@ export interface SignalMessage {
   readonly __type: unique symbol;
 }
 export interface SignedPreKeyRecord {
+  readonly __type: unique symbol;
+}
+export interface Svr2BackupSession {
   readonly __type: unique symbol;
 }
 export interface TestingFutureCancellationCounter {

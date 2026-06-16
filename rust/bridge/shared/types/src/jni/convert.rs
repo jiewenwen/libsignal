@@ -9,9 +9,9 @@ use std::sync::Arc;
 
 use itertools::Itertools as _;
 use jni::objects::{JByteBuffer, JIntArray, JObjectArray};
-use jni::refs::{Auto, IntoAuto as _};
+use jni::refs::{Auto, IntoAuto as _, Reference};
 use jni::sys::{JNI_FALSE, JNI_TRUE, jbyte};
-use jni::{jni_sig, jni_sig_jstr, jni_sig_str, jni_str};
+use jni::{jni_sig, jni_sig_str, jni_str};
 use libsignal_account_keys::{AccountEntropyPool, InvalidAccountEntropyPool};
 use libsignal_core::try_scoped;
 use libsignal_net::cdsi::LookupResponseEntry;
@@ -40,13 +40,20 @@ use crate::support::{
 
 #[cfg(feature = "metadata")]
 mod metadata {
+    use crate::metadata::NiceType;
     pub use crate::metadata::jni::*;
 
     pub trait NiceArgConverter {
         fn register_kt_arg_converter(ctx: &mut KtMetadataContext) -> KtArgConverter;
+        fn register_kt_nice_type(ctx: &mut KtMetadataContext) -> NiceType {
+            Self::register_kt_arg_converter(ctx).nice_type
+        }
     }
     pub trait NiceResultConverter {
         fn register_kt_result_converter(ctx: &mut KtMetadataContext) -> KtReturnConverter;
+        fn register_kt_nice_type(ctx: &mut KtMetadataContext) -> NiceType {
+            Self::register_kt_result_converter(ctx).nice_type
+        }
     }
 }
 #[cfg(feature = "metadata")]
@@ -59,6 +66,7 @@ macro_rules! nice_identity_arg_converter {
                 KtArgConverter {
                     nice_type: $kt.into(),
                     ffi_type: $kt.into(),
+                    ffi_field_type_erased: ffi_field_type_erased::<Self, _>(),
                     converter_function: "identity".to_string(),
                 }
             }
@@ -80,6 +88,69 @@ macro_rules! nice_identity_result_converter {
     };
 }
 
+/// A helper function to get the kt_erased_field_type for an argument type.
+#[cfg(feature = "metadata")]
+fn ffi_field_type_erased<'a, 'b: 'a, 'c: 'b, 'd, T: ArgTypeInfo<'a, 'b, 'c>, Raw>() -> String
+where
+    T::ArgType: ConvertibleFromJValue<'d, Raw>,
+{
+    let sig = <<T as ArgTypeInfo>::ArgType as ConvertibleFromJValue<Raw>>::SIGNATURE;
+    match sig.ty() {
+        jni::signature::JavaType::Primitive(primitive) => match primitive {
+            jni::signature::Primitive::Boolean => "Boolean",
+            jni::signature::Primitive::Byte => "Byte",
+            jni::signature::Primitive::Char => "Char",
+            jni::signature::Primitive::Double => "Double",
+            jni::signature::Primitive::Float => "Float",
+            jni::signature::Primitive::Int => "Int",
+            jni::signature::Primitive::Long => "Long",
+            jni::signature::Primitive::Short => "Short",
+            jni::signature::Primitive::Void => "Unit",
+        },
+        jni::signature::JavaType::Object | jni::signature::JavaType::Array => {
+            assert_eq!(&sig, &jni_sig!(JObject));
+            "Any?"
+        }
+    }
+    .to_string()
+}
+
+/// Describes how to convert a [`JValueOwned`] into a more specific Java type.
+///
+/// For primitives (`jint`, `jchar`, etc), this is just the corresponding `TryInto` implementation.
+/// For objects, this is `try_into` (or `into_object`) followed by a downcast.
+///
+/// ## Implementation
+///
+/// The `Raw` argument *ought* to be unnecessary. However, without it the blanket impl on
+/// [`jni::refs::Reference`] conflicts with the implementations for primitives; having an extra
+/// generic argument makes the implementations technically not overlap. This would still be quite
+/// inconvenient...except that the Rust compiler does not *perfectly* enforce coherence: if a type
+/// only has one impl for a trait, the trait's generic arguments can be inferred. Thus, even though
+/// generic uses of `ConvertibleFromJValue` must allow for an extra `Raw` parameter, any concrete
+/// uses will work without explicit typing.
+pub trait ConvertibleFromJValue<'a, Raw>: Sized {
+    const SIGNATURE: ::jni::signature::FieldSignature<'static>;
+    fn try_convert(env: &mut jni::Env<'a>, value: JValueOwned<'a>) -> jni::errors::Result<Self>;
+}
+impl<'a, T: jni::refs::Reference<Kind<'a> = T>> ConvertibleFromJValue<'a, ()> for T {
+    const SIGNATURE: jni::signature::FieldSignature<'static> = jni::jni_sig!(JObject);
+    fn try_convert(env: &mut jni::Env<'a>, value: JValueOwned<'a>) -> jni::errors::Result<Self> {
+        env.cast_local::<Self>(value.into_object()?)
+    }
+}
+macro_rules! convertible_primitive {
+    ($($ty:ident),*$(,)?) => {$(
+        impl ConvertibleFromJValue<'_, ::jni::sys::$ty> for ::jni::sys::$ty {
+            const SIGNATURE: jni::signature::FieldSignature<'static> = jni::jni_sig!($ty);
+            fn try_convert(_env: &mut jni::Env<'_>, value: JValueOwned<'_>) -> jni::errors::Result<Self> {
+                value.try_into()
+            }
+        }
+    )*};
+}
+convertible_primitive!(jboolean, jint, jlong, jbyte, jshort, jfloat, jdouble);
+
 /// Converts arguments from their JNI form to their Rust form.
 ///
 /// `ArgTypeInfo` has two required methods: `borrow` and `load_from`. The use site looks like this:
@@ -88,10 +159,10 @@ macro_rules! nice_identity_result_converter {
 /// # use libsignal_bridge_types::jni::*;
 /// # struct Foo;
 /// # impl SimpleArgTypeInfo<'_> for Foo {
-/// #     type ArgType = isize;
-/// #     fn convert_from(env: &mut jni::Env, foreign: &isize) -> Result<Self, BridgeLayerError> { Ok(Foo) }
+/// #     type ArgType = i32;
+/// #     fn convert_from(env: &mut jni::Env, foreign: &i32) -> Result<Self, BridgeLayerError> { Ok(Foo) }
 /// # }
-/// # fn test(env: &mut jni::Env, jni_arg: isize) -> Result<(), BridgeLayerError> {
+/// # fn test(env: &mut jni::Env, jni_arg: i32) -> Result<(), BridgeLayerError> {
 /// let mut jni_arg_borrowed = Foo::borrow(env, &jni_arg)?;
 /// let rust_arg = Foo::load_from(&mut jni_arg_borrowed);
 /// #     Ok(())
@@ -117,7 +188,7 @@ pub trait ArgTypeInfo<'storage, 'param: 'storage, 'context: 'param>: Sized {
     /// "Borrows" the data in `foreign`, usually to establish a local lifetime or owning type.
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError>;
     /// Loads the Rust value from the data that's been `stored` by [`borrow()`](Self::borrow()).
     fn load_from(stored: &'storage mut Self::StoredType) -> Self;
@@ -164,7 +235,7 @@ where
     type StoredType = Option<Self>;
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         Ok(Some(Self::convert_from(env, foreign)?))
     }
@@ -312,6 +383,20 @@ impl SimpleArgTypeInfo<'_> for RandomNumberGenerator {
         Ok((*foreign).into())
     }
 }
+#[cfg(feature = "metadata")]
+impl NiceArgConverter for RandomNumberGenerator {
+    fn register_kt_arg_converter(_ctx: &mut KtMetadataContext) -> KtArgConverter {
+        KtArgConverter {
+            nice_type: "org.signal.libsignal.net.DeterministicRandomSeedUseOnlyForTesting?"
+                .to_string(),
+            ffi_type: "Long".to_string(),
+            ffi_field_type_erased: ffi_field_type_erased::<Self, _>(),
+            converter_function:
+                "org.signal.libsignal.net.DeterministicRandomSeedUseOnlyForTesting.toFfi"
+                    .to_string(),
+        }
+    }
+}
 
 /// Supports values `0..=Long.MAX_VALUE`.
 ///
@@ -454,6 +539,24 @@ impl<'a> SimpleArgTypeInfo<'a> for AccountEntropyPool {
     }
 }
 
+impl<'a> SimpleArgTypeInfo<'a> for Vec<u8> {
+    type ArgType = JByteArray<'a>;
+
+    fn convert_from(
+        env: &mut jni::Env<'a>,
+        foreign: &Self::ArgType,
+    ) -> Result<Self, BridgeLayerError> {
+        try_scoped(|| {
+            let len = foreign.len(env)?;
+            let mut out = vec![0_u8; len];
+            foreign.get_region(env, 0, zerocopy::transmute_mut!(out.as_mut_slice()))?;
+            Ok(out)
+        })
+        .check_exceptions(env, "Vec<u8>::convert_from()")
+    }
+}
+nice_identity_arg_converter!(Vec<u8>, "ByteArray");
+
 impl<'a> SimpleArgTypeInfo<'a>
     for libsignal_net_chat::api::messages::MultiRecipientSendAuthorization
 {
@@ -479,7 +582,7 @@ impl<'a> SimpleArgTypeInfo<'a>
 }
 
 macro_rules! zkgroup_serialize_type {
-    ($($ty:ty),*$(,)?) => {$(
+    ($ty:ty, $cls:expr) => {
         impl<'a> SimpleArgTypeInfo<'a> for $ty {
             type ArgType = JByteArray<'a>;
             fn convert_from(
@@ -488,17 +591,39 @@ macro_rules! zkgroup_serialize_type {
             ) -> Result<Self, BridgeLayerError> {
                 let mut elements_guard = <&[u8]>::borrow(env, foreign)?;
                 let bytes = <&[u8]>::load_from(&mut elements_guard);
-                let token = zkgroup::deserialize(bytes).map_err(|_: ZkGroupDeserializationFailure| {
-                    BridgeLayerError::BadArgument(concat!("bad ", stringify!($ty)).into())
-                })?;
+                let token =
+                    zkgroup::deserialize(bytes).map_err(|_: ZkGroupDeserializationFailure| {
+                        BridgeLayerError::BadArgument(concat!("bad ", stringify!($ty)).into())
+                    })?;
                 Ok(token)
             }
         }
-    )*};
+
+        #[cfg(feature = "metadata")]
+        impl NiceArgConverter for $ty {
+            fn register_kt_arg_converter(_ctx: &mut KtMetadataContext) -> KtArgConverter {
+                KtArgConverter {
+                    nice_type: $cls.to_string(),
+                    ffi_type: "ByteArray".to_string(),
+                    ffi_field_type_erased: ffi_field_type_erased::<Self, _>(),
+                    converter_function: format!("({}::getInternalContentsForJNI)", $cls),
+                }
+            }
+        }
+    };
 }
-zkgroup_serialize_type!(GroupSendFullToken);
-zkgroup_serialize_type!(zkgroup::backups::BackupAuthCredential);
-zkgroup_serialize_type!(zkgroup::generic_server_params::GenericServerPublicParams);
+zkgroup_serialize_type!(
+    GroupSendFullToken,
+    "org.signal.libsignal.zkgroup.groupsend.GroupSendFullToken"
+);
+zkgroup_serialize_type!(
+    zkgroup::backups::BackupAuthCredential,
+    "org.signal.libsignal.zkgroup.backups.BackupAuthCredential"
+);
+zkgroup_serialize_type!(
+    zkgroup::generic_server_params::GenericServerPublicParams,
+    "org.signal.libsignal.zkgroup.GenericServerPublicParams"
+);
 
 impl<'a> SimpleArgTypeInfo<'a> for Box<[u8]> {
     type ArgType = JByteArray<'a>;
@@ -562,11 +687,11 @@ impl<'storage, 'param: 'storage, 'context: 'param> ArgTypeInfo<'storage, 'param,
     // This needs to be a `Send`-able value so so that the async task that holds
     // it can be migrated between threads.
     type StoredType = libsignal_account_keys::BackupKey;
-    type ArgType = JByteArray<'param>;
+    type ArgType = JByteArray<'context>;
 
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         use libsignal_account_keys::BACKUP_KEY_LEN;
         let elements = unsafe { foreign.get_elements(env, ReleaseMode::NoCopyBack) }
@@ -624,7 +749,7 @@ impl<'storage, 'param: 'storage, 'context: 'param> ArgTypeInfo<'storage, 'param,
     type StoredType = AutoElements<'context, jbyte, JByteArray<'context>>;
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         let foreign = env
             .new_local_ref(foreign)
@@ -648,7 +773,7 @@ impl<'storage, 'param: 'storage, 'context: 'param> ArgTypeInfo<'storage, 'param,
     type StoredType = Option<AutoElements<'context, jbyte, JByteArray<'context>>>;
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         if foreign.is_null() {
             Ok(None)
@@ -668,7 +793,7 @@ impl<'storage, 'param: 'storage, 'context: 'param> ArgTypeInfo<'storage, 'param,
     type StoredType = AutoElements<'context, jbyte, JByteArray<'context>>;
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         let foreign = env
             .new_local_ref(foreign)
@@ -692,7 +817,7 @@ impl<'storage, 'param: 'storage, 'context: 'param> ArgTypeInfo<'storage, 'param,
 
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         <&'storage [u8]>::borrow(env, foreign)
     }
@@ -782,7 +907,7 @@ impl<
 
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         check_jobject_type(env, foreign, ClassName(T::WRAPPER_CLASS))?;
         let foreign: ObjectHandle = env
@@ -807,6 +932,7 @@ impl<T: 'static + Send + Sync + BridgeHandleWrapperClass> NiceArgConverter
         KtArgConverter {
             nice_type: T::WRAPPER_CLASS.into(),
             ffi_type: T::WRAPPER_CLASS.into(),
+            ffi_field_type_erased: ffi_field_type_erased::<Self, _>(),
             converter_function: "identity".to_string(),
         }
     }
@@ -822,7 +948,7 @@ macro_rules! bridge_trait {
                 type StoredType = BridgedCallbacks<[<JniBridge $name>]$(<$life>)?>;
                 fn borrow(
                     env: &mut jni::Env<'context>,
-                    store: &'param Self::ArgType,
+                    store: &Self::ArgType,
                 ) -> Result<Self::StoredType, BridgeLayerError> {
                     Ok(BridgedCallbacks([<JniBridge $name>]::new(
                         env, store,
@@ -848,11 +974,11 @@ bridge_trait!(SessionStore);
 bridge_trait!(SignedPreKeyStore);
 bridge_trait!(KyberPreKeyStore);
 bridge_trait!(
-    InputStream<'storage>,
+    InputStream<'context>,
     |x: &'storage mut Self::StoredType| &mut x.0
 );
 bridge_trait!(
-    SyncInputStream<'storage>,
+    SyncInputStream<'context>,
     |x: &'storage mut Self::StoredType| &mut x.0
 );
 
@@ -1049,7 +1175,7 @@ impl<'storage, 'param: 'storage, 'context: 'param> ArgTypeInfo<'storage, 'param,
     type StoredType = Option<JniChatListener>;
     fn borrow(
         env: &mut jni::Env<'context>,
-        store: &'param Self::ArgType,
+        store: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         if store.is_null() {
             Ok(None)
@@ -1069,7 +1195,7 @@ impl<'storage, 'param: 'storage, 'context: 'param> ArgTypeInfo<'storage, 'param,
     type StoredType = Option<JniChatListener>;
     fn borrow(
         env: &mut jni::Env<'context>,
-        store: &'param Self::ArgType,
+        store: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         if store.is_null() {
             return Err(BridgeLayerError::NullPointer(Some("BridgeChatListener")));
@@ -1088,7 +1214,7 @@ impl<'storage, 'param: 'storage, 'context: 'param> ArgTypeInfo<'storage, 'param,
     type StoredType = Option<JniProvisioningListener>;
     fn borrow(
         env: &mut jni::Env<'context>,
-        store: &'param Self::ArgType,
+        store: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         if store.is_null() {
             return Err(BridgeLayerError::NullPointer(Some(
@@ -1109,7 +1235,7 @@ impl<'storage, 'param: 'storage, 'context: 'param> ArgTypeInfo<'storage, 'param,
     type StoredType = Option<JniConnectChatBridge>;
     fn borrow(
         env: &mut jni::Env<'context>,
-        store: &'param Self::ArgType,
+        store: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         JniConnectChatBridge::new(env, store).map(Some)
     }
@@ -1196,6 +1322,7 @@ impl ResultTypeInfo<'_> for () {
         Ok(self)
     }
 }
+nice_identity_result_converter!((), "Void?");
 
 impl CallbackResultTypeInfo<'_> for () {
     type ResultType = ();
@@ -1410,7 +1537,7 @@ impl<'storage, 'param: 'storage, 'context: 'param, const LEN: usize>
     type StoredType = AutoElements<'context, jbyte, JByteArray<'context>>;
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         let foreign = env
             .new_local_ref(foreign)
@@ -1443,7 +1570,7 @@ impl<'storage, 'param: 'storage, 'context: 'param, const LEN: usize>
     type StoredType = Option<AutoElements<'context, jbyte, JByteArray<'context>>>;
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         if foreign.is_null() {
             Ok(None)
@@ -1617,7 +1744,7 @@ where
 
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         if *foreign == 0 {
             Ok(None)
@@ -1646,7 +1773,7 @@ where
     type StoredType = (Vec<&'storage T>, Vec<Arc<T>>);
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         let array = unsafe { foreign.get_elements(env, ReleaseMode::NoCopyBack) }
             .check_exceptions(env, "<&[&T]>::borrow")?;
@@ -1681,7 +1808,7 @@ impl<'storage, 'param: 'storage, 'context: 'param> ArgTypeInfo<'storage, 'param,
     );
     fn borrow(
         env: &mut jni::Env<'context>,
-        foreign: &'param Self::ArgType,
+        foreign: &Self::ArgType,
     ) -> Result<Self::StoredType, BridgeLayerError> {
         type StoredGuarantees =
             dyn Send + Sync + std::panic::UnwindSafe + std::panic::RefUnwindSafe + 'static;
@@ -1788,6 +1915,26 @@ impl<'a> ResultTypeInfo<'a> for UploadForm {
     }
 }
 
+impl<'a> ResultTypeInfo<'a> for libsignal_net_chat::api::backups::CdnCredentials {
+    type ResultType = JObjectArray<'a>;
+
+    fn convert_into(self, env: &mut jni::Env<'a>) -> Result<Self::ResultType, BridgeLayerError> {
+        let Self { headers } = self;
+        headers.convert_into(env)
+    }
+}
+#[cfg(feature = "metadata")]
+impl NiceResultConverter for libsignal_net_chat::api::backups::CdnCredentials {
+    fn register_kt_result_converter(_ctx: &mut KtMetadataContext) -> KtReturnConverter {
+        KtReturnConverter {
+            nice_type: "org.signal.libsignal.net.BackupCdnCredentials".to_owned(),
+            ffi_type: "Array<Pair<String, String>>".to_owned(),
+            converter_function: "org.signal.libsignal.net.BackupCdnCredentials.fromFfiHeaders"
+                .to_owned(),
+        }
+    }
+}
+
 impl<'a, A: ResultTypeInfo<'a>, B: ResultTypeInfo<'a>> ResultTypeInfo<'a> for (A, B) {
     type ResultType = JavaPair<'a, A::ResultType, B::ResultType>;
     fn convert_into(self, env: &mut jni::Env<'a>) -> Result<Self::ResultType, BridgeLayerError> {
@@ -1801,6 +1948,26 @@ impl<'a, A: ResultTypeInfo<'a>, B: ResultTypeInfo<'a>> ResultTypeInfo<'a> for (A
             jni_args!((a => java.lang.Object, b => java.lang.Object) -> void),
         )?
         .into())
+    }
+}
+#[cfg(feature = "metadata")]
+impl<A: NiceResultConverter, B: NiceResultConverter> NiceResultConverter for (A, B) {
+    fn register_kt_result_converter(ctx: &mut KtMetadataContext) -> KtReturnConverter {
+        let a = A::register_kt_result_converter(ctx);
+        let b = B::register_kt_result_converter(ctx);
+        KtReturnConverter {
+            nice_type: format!("Pair<{}, {}>", a.nice_type, b.nice_type),
+            ffi_type: format!("Pair<{}, {}>", a.ffi_type, b.ffi_type),
+            converter_function: format!(
+                "mapPair<{}, {}, {}, {}>({{ {}(it) }}, {{ {}(it) }})",
+                a.ffi_type,
+                b.ffi_type,
+                a.nice_type,
+                b.nice_type,
+                a.converter_function,
+                b.converter_function
+            ),
+        }
     }
 }
 
@@ -1981,6 +2148,7 @@ impl NiceArgConverter for ServiceId {
         KtArgConverter {
             nice_type: "org.signal.libsignal.protocol.ServiceId".to_string(),
             ffi_type: "ByteArray".to_string(),
+            ffi_field_type_erased: ffi_field_type_erased::<Self, _>(),
             converter_function:
                 "(org.signal.libsignal.protocol.ServiceId::toServiceIdFixedWidthBinary)".to_string(),
         }
@@ -2361,7 +2529,8 @@ impl<'a> ResultTypeInfo<'a> for Vec<ServiceId> {
     type ResultType = JObjectArray<'a>;
 
     fn convert_into(self, env: &mut jni::Env<'a>) -> Result<Self::ResultType, BridgeLayerError> {
-        let element_class = find_primitive_array_class(env, jni_sig_jstr!([byte]))
+        let element_class = JByteArray::lookup_class(env, &loader_context().unwrap_or_default())
+            .and_then(|cls| env.new_local_ref(&*cls))
             .check_exceptions(env, "Vec<ServiceId>::convert_into")?;
         make_object_array(env, element_class, self)
     }
@@ -2636,8 +2805,9 @@ impl<'a> ResultTypeInfo<'a> for Box<[String]> {
 impl<'a> ResultTypeInfo<'a> for Box<[Vec<u8>]> {
     type ResultType = JObjectArray<'a>;
     fn convert_into(self, env: &mut jni::Env<'a>) -> Result<Self::ResultType, BridgeLayerError> {
-        let element_class = find_primitive_array_class(env, jni_sig_jstr!([byte]))
-            .check_exceptions(env, "Box<[Vec<u8>]>::convert_into")?;
+        let element_class = JByteArray::lookup_class(env, &loader_context().unwrap_or_default())
+            .and_then(|cls| env.new_local_ref(&*cls))
+            .check_exceptions(env, "Vec<ServiceId>::convert_into")?;
         make_object_array(env, element_class, self)
     }
 }
@@ -2692,7 +2862,7 @@ macro_rules! jni_bridge_as_handle {
 
             fn borrow(
                 _env: &mut ::jni::Env<'context>,
-                foreign: &'param Self::ArgType,
+                foreign: &Self::ArgType,
             ) -> ::std::result::Result<Self::StoredType, $crate::jni::BridgeLayerError> {
                 let addr =
                     unsafe { <$typ as $crate::jni::BridgeHandle>::native_handle_cast(*foreign)? };
@@ -2715,7 +2885,7 @@ macro_rules! jni_bridge_as_handle {
 
             fn borrow(
                 _env: &mut ::jni::Env<'context>,
-                foreign: &'param Self::ArgType,
+                foreign: &Self::ArgType,
             ) -> ::std::result::Result<Self::StoredType, $crate::jni::BridgeLayerError> {
                 let addr =
                     unsafe { <$typ as $crate::jni::BridgeHandle>::native_handle_cast(*foreign)? };
@@ -2909,6 +3079,9 @@ macro_rules! jni_arg_type {
         ::jni::objects::JByteArray<'local>
     };
     (::zkgroup::generic_server_params::GenericServerPublicParams) => {
+        ::jni::objects::JByteArray<'local>
+    };
+    (Vec<u8>) => {
         ::jni::objects::JByteArray<'local>
     };
     (Vec<&[u8]>) => {
@@ -3160,6 +3333,16 @@ macro_rules! jni_result_type {
     (UploadForm) => {
         ::jni::objects::JObject<'local>
     };
+    (CdnCredentials) => {
+        ::jni::objects::JObjectArray<'local>
+    };
+
+    // Derived types
+    (MySimpleTestEnum) => {::jni::objects::JObject<'local>};
+    (MyTestEnum) => {::jni::objects::JObject<'local>};
+    (MyTestPoint) => {::jni::objects::JObject<'local>};
+    (MyTestStruct) => {::jni::objects::JObject<'local>};
+
     ( $handle:ty ) => {
         $crate::jni::ObjectHandle
     };

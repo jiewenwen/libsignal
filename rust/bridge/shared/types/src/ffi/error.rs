@@ -11,10 +11,11 @@ use attest::enclave::Error as EnclaveError;
 use attest::hsm_enclave::Error as HsmEnclaveError;
 use device_transfer::Error as DeviceTransferError;
 use libsignal_account_keys::Error as PinError;
-use libsignal_net::infra::errors::{LogSafeDisplay, TransportConnectError};
+use libsignal_core::LogSafeDisplay;
+use libsignal_net::infra::errors::TransportConnectError;
 use libsignal_net::infra::ws::WebSocketConnectError;
 use libsignal_net_chat::api::RateLimitChallenge;
-use libsignal_net_chat::api::backups::GetUploadFormFailure;
+use libsignal_net_chat::api::backups::{BackupAuthCredentialRejected, GetUploadFormFailure};
 use libsignal_net_chat::api::keys::GetPreKeysFailure;
 use libsignal_net_chat::api::keytrans::Error as KeyTransError;
 use libsignal_net_chat::api::messages::{MismatchedDeviceError, UploadTooLarge};
@@ -820,6 +821,12 @@ impl IntoFfiError for GetUploadFormFailure {
             },
             self.to_string(),
         )
+    }
+}
+
+impl IntoFfiError for BackupAuthCredentialRejected {
+    fn into_ffi_error(self) -> impl Into<SignalFfiError> {
+        SimpleError::new(SignalErrorCode::RequestUnauthorized, self.to_string())
     }
 }
 

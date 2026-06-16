@@ -28,6 +28,8 @@ use libsignal_net::chat::{ConnectError as ChatConnectError, SendError as ChatSen
 use libsignal_net::infra::errors::{RetryLater, TransportConnectError};
 use libsignal_net::infra::ws::{WebSocketConnectError, WebSocketError};
 use libsignal_net::svrb::Error as SvrbError;
+use libsignal_net_chat::api::backups::{BackupAuthCredentialRejected, GetUploadFormFailure};
+use libsignal_net_chat::api::messages::UploadTooLarge;
 use libsignal_net_chat::api::{RateLimitChallenge, RequestError as ChatRequestError};
 use libsignal_protocol::*;
 use signal_crypto::Error as SignalCryptoError;
@@ -62,8 +64,6 @@ pub use futures::*;
 
 mod io;
 pub use io::*;
-use libsignal_net_chat::api::backups::GetUploadFormFailure;
-use libsignal_net_chat::api::messages::UploadTooLarge;
 
 mod storage;
 pub use storage::*;
@@ -245,6 +245,19 @@ impl JniError for UploadTooLarge {
     }
 }
 
+impl JniError for BackupAuthCredentialRejected {
+    fn to_throwable_impl<'a>(
+        &self,
+        env: &mut jni::Env<'a>,
+    ) -> Result<JObject<'a>, BridgeLayerError> {
+        make_single_message_throwable(
+            env,
+            self.to_string(),
+            ClassName("org.signal.libsignal.net.RequestUnauthorizedException"),
+        )
+    }
+}
+
 impl JniError for SignalProtocolError {
     fn to_throwable_impl<'a>(
         &self,
@@ -273,9 +286,13 @@ impl JniError for SignalProtocolError {
                     jni_args!((addr_name => java.lang.String) -> void),
                 );
             }
-            SignalProtocolError::SessionNotFound(addr) => {
-                let addr_object = protocol_address_to_jobject(env, addr)?;
+            SignalProtocolError::SessionNotFound(SessionNotFound { address, op: _ }) => {
                 let message = new_jstring_from_owned_utf8(env, self.to_string())?;
+                let addr_object = if let Some(address) = address {
+                    protocol_address_to_jobject(env, address)?
+                } else {
+                    JObject::null()
+                };
                 return new_instance(
                     env,
                     ClassName("org.signal.libsignal.protocol.NoSessionException"),
@@ -1718,7 +1735,7 @@ impl GlobalAndVM {
 ///
 /// A value that's already an object will be unchanged. A `void` "value" will be converted to
 /// `null`.
-fn box_primitive_if_needed<'a>(
+pub fn box_primitive_if_needed<'a>(
     env: &mut jni::Env<'a>,
     value: JValueOwned<'a>,
 ) -> Result<JObject<'a>, BridgeLayerError> {

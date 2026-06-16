@@ -1,2 +1,3 @@
-v0.94.3
+v0.96.1
 
+- Node: Custom registration errors
