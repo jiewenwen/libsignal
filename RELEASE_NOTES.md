@@ -1,3 +1,3 @@
-v0.96.1
+v0.96.2
 
-- Node: Custom registration errors
+- Expose DonationPermit to clients
