@@ -6,7 +6,28 @@
 // WARNING: this file was automatically generated
 
 import * as Native from './Native.js';
-import { type GrpcTestCase } from './Native.js';
+import {
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  type GrpcTestCase,
+  type ArgFfiMyRemoteDeriveEnum,
+  type ArgFfiMyRemoteDeriveStruct,
+  type ArgFfiMySimpleTestEnum,
+  type ArgFfiMyTestEnum,
+  type ArgFfiMyTestPoint,
+  type ArgFfiMyTestStruct,
+  type ReturnFfiMyRemoteDeriveEnum,
+  type ReturnFfiMyRemoteDeriveStruct,
+  type ReturnFfiMySimpleTestEnum,
+  type ReturnFfiMyTestEnum,
+  type ReturnFfiMyTestPoint,
+  type ReturnFfiMyTestStruct,
+  type ReturnFfiReserveUsernameHashArgs,
+  type ReturnFfiReserveUsernameHashOut,
+  type ReturnFfiSetDeviceNameArgs,
+  type ReturnFfiSetDeviceNameOut,
+  /* eslint-enable @typescript-eslint/no-unused-vars */
+} from './Native.js';
+
 import { ServiceId } from './Address.js';
 import * as zkgroup from './zkgroup/index.js';
 import ByteArray from './zkgroup/internal/ByteArray.js';
@@ -65,6 +86,16 @@ export type MyTestStruct = {
   myNumericField: number;
   myStringField: string;
 };
+
+export type ReserveUsernameHashArgs = {
+  usernames: Array<Uint8Array<ArrayBuffer>>;
+};
+
+export type ReserveUsernameHashOut =
+  | {
+      success: Uint8Array<ArrayBuffer>;
+    }
+  | 'usernameNotAvailable';
 
 export type SetDeviceNameArgs = {
   id: number;
@@ -166,6 +197,35 @@ function returnConverterMyTestStruct(
     myNumericField: identity(ffiInput.my_numeric_field),
     myStringField: identity(ffiInput.my_string_field),
   };
+}
+
+function returnConverterReserveUsernameHashArgs(
+  ffiInput: Native.ReturnFfiReserveUsernameHashArgs
+): ReserveUsernameHashArgs {
+  return {
+    usernames: ((arr: Array<Uint8Array<ArrayBuffer>>) => arr.map(identity))(
+      ffiInput.usernames
+    ),
+  };
+}
+
+function returnConverterReserveUsernameHashOut(
+  ffiInput: Native.ReturnFfiReserveUsernameHashOut
+): ReserveUsernameHashOut {
+  switch (ffiInput.__type) {
+    case 0:
+      return {
+        success: identity(ffiInput._0),
+      };
+    case 1:
+      return 'usernameNotAvailable';
+
+    default:
+      ffiInput satisfies never;
+      throw new Error(
+        'Unknown FFI return enum type for ReserveUsernameHashOut'
+      );
+  }
 }
 
 function returnConverterSetDeviceNameArgs(
@@ -311,6 +371,30 @@ function argConverterMyTestStruct(
   };
 }
 
+export async function AuthenticatedChatConnection_reserve_username_hash({
+  asyncContext,
+  abortSignal,
+  chat: chat,
+  usernameHashes: username_hashes,
+}: {
+  asyncContext: TokioAsyncContext;
+  abortSignal?: AbortSignal;
+  chat: Native.Wrapper<Native.AuthenticatedChatConnection>;
+  usernameHashes: Array<Uint8Array<ArrayBuffer>>;
+}): Promise<Uint8Array<ArrayBuffer>> {
+  return identity(
+    await asyncContext.makeCancellable(
+      abortSignal,
+      Native.AuthenticatedChatConnection_reserve_username_hash(
+        asyncContext,
+        identity(chat),
+        ((arr: Array<Uint8Array<ArrayBuffer>>) => arr.map(identity))(
+          username_hashes
+        )
+      )
+    )
+  );
+}
 export async function AuthenticatedChatConnection_set_device_name({
   asyncContext,
   abortSignal,
@@ -357,6 +441,56 @@ export function TESTING_MyRemoteDeriveStruct_identity({
   return returnConverterMyRemoteDeriveStruct(
     Native.TESTING_MyRemoteDeriveStruct_identity(
       argConverterMyRemoteDeriveStruct(x)
+    )
+  );
+}
+
+export function TESTING_MySimpleTestEnum_BridgeVec_identity({
+  x: x,
+}: {
+  x: Array<MySimpleTestEnum>;
+}): Array<MySimpleTestEnum> {
+  return ((arr: Array<ReturnFfiMySimpleTestEnum>) =>
+    arr.map(returnConverterMySimpleTestEnum))(
+    Native.TESTING_MySimpleTestEnum_BridgeVec_identity(
+      ((arr: Array<MySimpleTestEnum>) => arr.map(argConverterMySimpleTestEnum))(
+        x
+      )
+    )
+  );
+}
+export async function TESTING_MySimpleTestEnum_BridgeVec_identity_async({
+  asyncContext,
+  abortSignal,
+  x: x,
+}: {
+  asyncContext: TokioAsyncContext;
+  abortSignal?: AbortSignal;
+  x: Array<MySimpleTestEnum>;
+}): Promise<Array<MySimpleTestEnum>> {
+  return ((arr: Array<ReturnFfiMySimpleTestEnum>) =>
+    arr.map(returnConverterMySimpleTestEnum))(
+    await asyncContext.makeCancellable(
+      abortSignal,
+      Native.TESTING_MySimpleTestEnum_BridgeVec_identity_async(
+        asyncContext,
+        ((arr: Array<MySimpleTestEnum>) =>
+          arr.map(argConverterMySimpleTestEnum))(x)
+      )
+    )
+  );
+}
+
+export function TESTING_MySimpleTestEnum_BridgeVec_to_string({
+  x: x,
+}: {
+  x: Array<MySimpleTestEnum>;
+}): string {
+  return identity(
+    Native.TESTING_MySimpleTestEnum_BridgeVec_to_string(
+      ((arr: Array<MySimpleTestEnum>) => arr.map(argConverterMySimpleTestEnum))(
+        x
+      )
     )
   );
 }
@@ -517,6 +651,15 @@ export function TESTING_MyTestStruct_to_string({
   );
 }
 
+export function TESTING_ReserveUsernameHashTests(): Array<
+  GrpcTestCase<ReserveUsernameHashArgs, ReserveUsernameHashOut>
+> {
+  return grpcTestCaseConverter(
+    returnConverterReserveUsernameHashArgs,
+    returnConverterReserveUsernameHashOut
+  )(Native.TESTING_ReserveUsernameHashTests());
+}
+
 export function TESTING_SetDeviceNameTests(): Array<
   GrpcTestCase<SetDeviceNameArgs, SetDeviceNameOut>
 > {
@@ -551,6 +694,124 @@ export async function TESTING_TokioAsyncContext_FutureSuccessBytes({
       )
     )
   );
+}
+
+export function TESTING_conversion_BridgeVecData32_identity({
+  x: x,
+}: {
+  x: Array<Uint8Array<ArrayBuffer>>;
+}): Array<Uint8Array<ArrayBuffer>> {
+  return ((arr: Array<Uint8Array<ArrayBuffer>>) => arr.map(identity))(
+    Native.TESTING_conversion_BridgeVecData32_identity(
+      ((arr: Array<Uint8Array<ArrayBuffer>>) => arr.map(identity))(x)
+    )
+  );
+}
+export async function TESTING_conversion_BridgeVecData32_identity_async({
+  asyncContext,
+  abortSignal,
+  x: x,
+}: {
+  asyncContext: TokioAsyncContext;
+  abortSignal?: AbortSignal;
+  x: Array<Uint8Array<ArrayBuffer>>;
+}): Promise<Array<Uint8Array<ArrayBuffer>>> {
+  return ((arr: Array<Uint8Array<ArrayBuffer>>) => arr.map(identity))(
+    await asyncContext.makeCancellable(
+      abortSignal,
+      Native.TESTING_conversion_BridgeVecData32_identity_async(
+        asyncContext,
+        ((arr: Array<Uint8Array<ArrayBuffer>>) => arr.map(identity))(x)
+      )
+    )
+  );
+}
+
+export function TESTING_conversion_BridgeVecData32_to_string({
+  x: x,
+}: {
+  x: Array<Uint8Array<ArrayBuffer>>;
+}): string {
+  return identity(
+    Native.TESTING_conversion_BridgeVecData32_to_string(
+      ((arr: Array<Uint8Array<ArrayBuffer>>) => arr.map(identity))(x)
+    )
+  );
+}
+
+export function TESTING_conversion_BridgeVecString_identity({
+  x: x,
+}: {
+  x: Array<string>;
+}): Array<string> {
+  return ((arr: Array<string>) => arr.map(identity))(
+    Native.TESTING_conversion_BridgeVecString_identity(
+      ((arr: Array<string>) => arr.map(identity))(x)
+    )
+  );
+}
+export async function TESTING_conversion_BridgeVecString_identity_async({
+  asyncContext,
+  abortSignal,
+  x: x,
+}: {
+  asyncContext: TokioAsyncContext;
+  abortSignal?: AbortSignal;
+  x: Array<string>;
+}): Promise<Array<string>> {
+  return ((arr: Array<string>) => arr.map(identity))(
+    await asyncContext.makeCancellable(
+      abortSignal,
+      Native.TESTING_conversion_BridgeVecString_identity_async(
+        asyncContext,
+        ((arr: Array<string>) => arr.map(identity))(x)
+      )
+    )
+  );
+}
+
+export function TESTING_conversion_BridgeVecString_to_string({
+  x: x,
+}: {
+  x: Array<string>;
+}): string {
+  return identity(
+    Native.TESTING_conversion_BridgeVecString_to_string(
+      ((arr: Array<string>) => arr.map(identity))(x)
+    )
+  );
+}
+
+export function TESTING_conversion_Data32_identity({
+  x: x,
+}: {
+  x: Uint8Array<ArrayBuffer>;
+}): Uint8Array<ArrayBuffer> {
+  return identity(Native.TESTING_conversion_Data32_identity(identity(x)));
+}
+export async function TESTING_conversion_Data32_identity_async({
+  asyncContext,
+  abortSignal,
+  x: x,
+}: {
+  asyncContext: TokioAsyncContext;
+  abortSignal?: AbortSignal;
+  x: Uint8Array<ArrayBuffer>;
+}): Promise<Uint8Array<ArrayBuffer>> {
+  return identity(
+    await asyncContext.makeCancellable(
+      abortSignal,
+      Native.TESTING_conversion_Data32_identity_async(asyncContext, identity(x))
+    )
+  );
+}
+
+export function TESTING_conversion_Data32_to_string({
+  x: x,
+}: {
+  x: Uint8Array<ArrayBuffer>;
+}): string {
+  return identity(Native.TESTING_conversion_Data32_to_string(identity(x)));
 }
 
 export function TESTING_conversion_Data_VecU8_identity({

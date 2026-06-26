@@ -216,6 +216,19 @@ export type ReturnFfiMyTestStruct = {
   my_string_field: string;
 };
 
+export type ReturnFfiReserveUsernameHashArgs = {
+  usernames: Array<Uint8Array<ArrayBuffer>>;
+};
+
+export type ReturnFfiReserveUsernameHashOut =
+  | {
+      __type: 0;
+      _0: Uint8Array<ArrayBuffer>;
+    }
+  | {
+      __type: 1;
+    };
+
 export type ReturnFfiSetDeviceNameArgs = {
   id: number;
   encrypted_name: Uint8Array<ArrayBuffer>;
@@ -388,6 +401,11 @@ type NativeFunctions = {
     asyncRuntime: Wrapper<TokioAsyncContext>,
     connection_manager: Wrapper<ConnectionManager>
   ) => CancellablePromise<void>;
+  AuthenticatedChatConnection_reserve_username_hash: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    chat: Wrapper<AuthenticatedChatConnection>,
+    username_hashes: Array<Uint8Array<ArrayBuffer>>
+  ) => CancellablePromise<Uint8Array<ArrayBuffer>>;
   AuthenticatedChatConnection_send: (
     asyncRuntime: Wrapper<TokioAsyncContext>,
     chat: Wrapper<AuthenticatedChatConnection>,
@@ -2256,6 +2274,16 @@ type NativeFunctions = {
   TESTING_MyRemoteDeriveStruct_identity: (
     x: ArgFfiMyRemoteDeriveStruct
   ) => ReturnFfiMyRemoteDeriveStruct;
+  TESTING_MySimpleTestEnum_BridgeVec_identity: (
+    x: Array<ArgFfiMySimpleTestEnum>
+  ) => Array<ReturnFfiMySimpleTestEnum>;
+  TESTING_MySimpleTestEnum_BridgeVec_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: Array<ArgFfiMySimpleTestEnum>
+  ) => CancellablePromise<Array<ReturnFfiMySimpleTestEnum>>;
+  TESTING_MySimpleTestEnum_BridgeVec_to_string: (
+    x: Array<ArgFfiMySimpleTestEnum>
+  ) => string;
   TESTING_MySimpleTestEnum_identity: (
     x: ArgFfiMySimpleTestEnum
   ) => ReturnFfiMySimpleTestEnum;
@@ -2343,6 +2371,12 @@ type NativeFunctions = {
     error_description: string
   ) => void;
   TESTING_RegistrationSessionInfoConvert: () => RegistrationSession;
+  TESTING_ReserveUsernameHashTests: () => Array<
+    GrpcTestCaseFfi<
+      ReturnFfiReserveUsernameHashArgs,
+      ReturnFfiReserveUsernameHashOut
+    >
+  >;
   TESTING_ReturnPair: () => [number, string];
   TESTING_ReturnStringArray: () => Array<string>;
   TESTING_RoundTripI32: (input: number) => number;
@@ -2372,6 +2406,32 @@ type NativeFunctions = {
     asyncRuntime: Wrapper<TokioAsyncContext>,
     input: number
   ) => CancellablePromise<number>;
+  TESTING_conversion_BridgeVecData32_identity: (
+    x: Array<Uint8Array<ArrayBuffer>>
+  ) => Array<Uint8Array<ArrayBuffer>>;
+  TESTING_conversion_BridgeVecData32_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: Array<Uint8Array<ArrayBuffer>>
+  ) => CancellablePromise<Array<Uint8Array<ArrayBuffer>>>;
+  TESTING_conversion_BridgeVecData32_to_string: (
+    x: Array<Uint8Array<ArrayBuffer>>
+  ) => string;
+  TESTING_conversion_BridgeVecString_identity: (
+    x: Array<string>
+  ) => Array<string>;
+  TESTING_conversion_BridgeVecString_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: Array<string>
+  ) => CancellablePromise<Array<string>>;
+  TESTING_conversion_BridgeVecString_to_string: (x: Array<string>) => string;
+  TESTING_conversion_Data32_identity: (
+    x: Uint8Array<ArrayBuffer>
+  ) => Uint8Array<ArrayBuffer>;
+  TESTING_conversion_Data32_identity_async: (
+    asyncRuntime: Wrapper<TokioAsyncContext>,
+    x: Uint8Array<ArrayBuffer>
+  ) => CancellablePromise<Uint8Array<ArrayBuffer>>;
+  TESTING_conversion_Data32_to_string: (x: Uint8Array<ArrayBuffer>) => string;
   TESTING_conversion_Data_VecU8_identity: (
     x: Uint8Array<ArrayBuffer>
   ) => Uint8Array<ArrayBuffer>;
@@ -2697,6 +2757,7 @@ const {
   AuthenticatedChatConnection_info,
   AuthenticatedChatConnection_init_listener,
   AuthenticatedChatConnection_preconnect,
+  AuthenticatedChatConnection_reserve_username_hash,
   AuthenticatedChatConnection_send,
   AuthenticatedChatConnection_send_message,
   AuthenticatedChatConnection_send_raw_grpc,
@@ -3207,6 +3268,9 @@ const {
   TESTING_KeyTransStoredAccountData,
   TESTING_MyRemoteDeriveEnum_identity,
   TESTING_MyRemoteDeriveStruct_identity,
+  TESTING_MySimpleTestEnum_BridgeVec_identity,
+  TESTING_MySimpleTestEnum_BridgeVec_identity_async,
+  TESTING_MySimpleTestEnum_BridgeVec_to_string,
   TESTING_MySimpleTestEnum_identity,
   TESTING_MySimpleTestEnum_identity_async,
   TESTING_MySimpleTestEnum_to_string,
@@ -3244,6 +3308,7 @@ const {
   TESTING_RegistrationService_SubmitVerificationErrorConvert,
   TESTING_RegistrationService_UpdateSessionErrorConvert,
   TESTING_RegistrationSessionInfoConvert,
+  TESTING_ReserveUsernameHashTests,
   TESTING_ReturnPair,
   TESTING_ReturnStringArray,
   TESTING_RoundTripI32,
@@ -3260,6 +3325,15 @@ const {
   TESTING_TokioAsyncContext_FutureSuccessBytes,
   TESTING_TokioAsyncContext_NewSingleThreaded,
   TESTING_TokioAsyncFuture,
+  TESTING_conversion_BridgeVecData32_identity,
+  TESTING_conversion_BridgeVecData32_identity_async,
+  TESTING_conversion_BridgeVecData32_to_string,
+  TESTING_conversion_BridgeVecString_identity,
+  TESTING_conversion_BridgeVecString_identity_async,
+  TESTING_conversion_BridgeVecString_to_string,
+  TESTING_conversion_Data32_identity,
+  TESTING_conversion_Data32_identity_async,
+  TESTING_conversion_Data32_to_string,
   TESTING_conversion_Data_VecU8_identity,
   TESTING_conversion_Data_VecU8_identity_async,
   TESTING_conversion_Data_VecU8_to_string,
@@ -3362,6 +3436,7 @@ export {
   AuthenticatedChatConnection_info,
   AuthenticatedChatConnection_init_listener,
   AuthenticatedChatConnection_preconnect,
+  AuthenticatedChatConnection_reserve_username_hash,
   AuthenticatedChatConnection_send,
   AuthenticatedChatConnection_send_message,
   AuthenticatedChatConnection_send_raw_grpc,
@@ -3872,6 +3947,9 @@ export {
   TESTING_KeyTransStoredAccountData,
   TESTING_MyRemoteDeriveEnum_identity,
   TESTING_MyRemoteDeriveStruct_identity,
+  TESTING_MySimpleTestEnum_BridgeVec_identity,
+  TESTING_MySimpleTestEnum_BridgeVec_identity_async,
+  TESTING_MySimpleTestEnum_BridgeVec_to_string,
   TESTING_MySimpleTestEnum_identity,
   TESTING_MySimpleTestEnum_identity_async,
   TESTING_MySimpleTestEnum_to_string,
@@ -3909,6 +3987,7 @@ export {
   TESTING_RegistrationService_SubmitVerificationErrorConvert,
   TESTING_RegistrationService_UpdateSessionErrorConvert,
   TESTING_RegistrationSessionInfoConvert,
+  TESTING_ReserveUsernameHashTests,
   TESTING_ReturnPair,
   TESTING_ReturnStringArray,
   TESTING_RoundTripI32,
@@ -3925,6 +4004,15 @@ export {
   TESTING_TokioAsyncContext_FutureSuccessBytes,
   TESTING_TokioAsyncContext_NewSingleThreaded,
   TESTING_TokioAsyncFuture,
+  TESTING_conversion_BridgeVecData32_identity,
+  TESTING_conversion_BridgeVecData32_identity_async,
+  TESTING_conversion_BridgeVecData32_to_string,
+  TESTING_conversion_BridgeVecString_identity,
+  TESTING_conversion_BridgeVecString_identity_async,
+  TESTING_conversion_BridgeVecString_to_string,
+  TESTING_conversion_Data32_identity,
+  TESTING_conversion_Data32_identity_async,
+  TESTING_conversion_Data32_to_string,
   TESTING_conversion_Data_VecU8_identity,
   TESTING_conversion_Data_VecU8_identity_async,
   TESTING_conversion_Data_VecU8_to_string,

@@ -10,6 +10,7 @@
   "ktlint:standard:property-naming",
   "ktlint:standard:filename",
   "ktlint:standard:max-line-length",
+  "PLATFORM_CLASS_MAPPED_TO_KOTLIN",
 )
 
 package org.signal.libsignal.internal
@@ -17,6 +18,8 @@ package org.signal.libsignal.internal
 import org.signal.libsignal.internal.NativeNiceHelpers.convertToObject
 import org.signal.libsignal.internal.NativeNiceHelpers.downcastFromObject
 import org.signal.libsignal.internal.NativeNiceHelpers.identity
+import org.signal.libsignal.internal.NativeNiceHelpers.mapBridgeVecArg
+import org.signal.libsignal.internal.NativeNiceHelpers.mapBridgeVecReturn
 
 internal sealed class MySimpleTestEnum {
   internal data object A : MySimpleTestEnum() {
@@ -325,6 +328,42 @@ internal data class MyTestStruct(
 
 internal fun MyTestStruct.toFfiArgTypeObject(): Object = convertToObject(this.toFfiArgType())
 
+internal data class ReserveUsernameHashArgs(
+  val usernames: List<ByteArray>,
+) {
+  companion object {
+    @JvmStatic
+    @CalledFromNative
+    fun fromNative(usernames: Any?): ReserveUsernameHashArgs =
+      ReserveUsernameHashArgs(
+        usernames =
+          mapBridgeVecReturn<ByteArray, ByteArray>({ identity(it) })(usernames as Array<*>),
+      )
+  }
+}
+
+internal sealed class ReserveUsernameHashOut {
+  internal data class Success(
+    val _0: ByteArray,
+  ) : ReserveUsernameHashOut() {
+    companion object {
+      @JvmStatic
+      @CalledFromNative
+      fun fromNative(_0: Any?): Success =
+        Success(
+          _0 =
+            identity(_0 as ByteArray),
+        )
+    }
+  }
+
+  internal data object UsernameNotAvailable : ReserveUsernameHashOut() {
+    @JvmStatic
+    @CalledFromNative
+    fun fromNative(): UsernameNotAvailable = UsernameNotAvailable
+  }
+}
+
 internal data class SetDeviceNameArgs(
   val id: Int,
   val encryptedName: ByteArray,
@@ -360,6 +399,38 @@ internal sealed class SetDeviceNameOut {
 }
 
 internal object NativeTestingNice {
+  public fun TESTING_MySimpleTestEnum_BridgeVec_identity(
+    x: List<org.signal.libsignal.internal.MySimpleTestEnum>,
+  ): List<org.signal.libsignal.internal.MySimpleTestEnum> {
+    val ffi_x =
+      mapBridgeVecArg<Object, org.signal.libsignal.internal.MySimpleTestEnum>({
+        (org.signal.libsignal.internal.MySimpleTestEnum::toFfiArgTypeObject)(it)
+      })(x)
+    val ffiOut =
+      NativeTesting.TESTING_MySimpleTestEnum_BridgeVec_identity(
+        ffi_x,
+      )
+
+    return mapBridgeVecReturn<Object, org.signal.libsignal.internal.MySimpleTestEnum>({
+      downcastFromObject<org.signal.libsignal.internal.MySimpleTestEnum>(it)
+    })(ffiOut)
+  }
+
+  public fun TESTING_MySimpleTestEnum_BridgeVec_to_string(
+    x: List<org.signal.libsignal.internal.MySimpleTestEnum>,
+  ): String {
+    val ffi_x =
+      mapBridgeVecArg<Object, org.signal.libsignal.internal.MySimpleTestEnum>({
+        (org.signal.libsignal.internal.MySimpleTestEnum::toFfiArgTypeObject)(it)
+      })(x)
+    val ffiOut =
+      NativeTesting.TESTING_MySimpleTestEnum_BridgeVec_to_string(
+        ffi_x,
+      )
+
+    return identity(ffiOut)
+  }
+
   public fun TESTING_MySimpleTestEnum_identity(
     x: org.signal.libsignal.internal.MySimpleTestEnum,
   ): org.signal.libsignal.internal.MySimpleTestEnum {
@@ -448,6 +519,16 @@ internal object NativeTestingNice {
     return identity(ffiOut)
   }
 
+  public fun TESTING_ReserveUsernameHashTests(): List<org.signal.libsignal.net.GrpcTestCase<org.signal.libsignal.internal.ReserveUsernameHashArgs, org.signal.libsignal.internal.ReserveUsernameHashOut>> {
+    val ffiOut =
+      NativeTesting.TESTING_ReserveUsernameHashTests()
+
+    return org.signal.libsignal.net.GrpcTestCase
+      .resultConverter<Object, Object, org.signal.libsignal.internal.ReserveUsernameHashArgs, org.signal.libsignal.internal.ReserveUsernameHashOut>({
+        downcastFromObject<org.signal.libsignal.internal.ReserveUsernameHashArgs>(it)
+      }, { downcastFromObject<org.signal.libsignal.internal.ReserveUsernameHashOut>(it) })(ffiOut)
+  }
+
   public fun TESTING_SetDeviceNameTests(): List<org.signal.libsignal.net.GrpcTestCase<org.signal.libsignal.internal.SetDeviceNameArgs, org.signal.libsignal.internal.SetDeviceNameOut>> {
     val ffiOut =
       NativeTesting.TESTING_SetDeviceNameTests()
@@ -482,6 +563,66 @@ internal object NativeTestingNice {
       }
     return ffiOut
       .makeCancelable(asyncCtx)
+  }
+
+  public fun TESTING_conversion_BridgeVecData32_identity(x: List<ByteArray>): List<ByteArray> {
+    val ffi_x = mapBridgeVecArg<ByteArray, ByteArray>({ identity(it) })(x)
+    val ffiOut =
+      NativeTesting.TESTING_conversion_BridgeVecData32_identity(
+        ffi_x,
+      )
+
+    return mapBridgeVecReturn<ByteArray, ByteArray>({ identity(it) })(ffiOut)
+  }
+
+  public fun TESTING_conversion_BridgeVecData32_to_string(x: List<ByteArray>): String {
+    val ffi_x = mapBridgeVecArg<ByteArray, ByteArray>({ identity(it) })(x)
+    val ffiOut =
+      NativeTesting.TESTING_conversion_BridgeVecData32_to_string(
+        ffi_x,
+      )
+
+    return identity(ffiOut)
+  }
+
+  public fun TESTING_conversion_BridgeVecString_identity(x: List<String>): List<String> {
+    val ffi_x = mapBridgeVecArg<String, String>({ identity(it) })(x)
+    val ffiOut =
+      NativeTesting.TESTING_conversion_BridgeVecString_identity(
+        ffi_x,
+      )
+
+    return mapBridgeVecReturn<String, String>({ identity(it) })(ffiOut)
+  }
+
+  public fun TESTING_conversion_BridgeVecString_to_string(x: List<String>): String {
+    val ffi_x = mapBridgeVecArg<String, String>({ identity(it) })(x)
+    val ffiOut =
+      NativeTesting.TESTING_conversion_BridgeVecString_to_string(
+        ffi_x,
+      )
+
+    return identity(ffiOut)
+  }
+
+  public fun TESTING_conversion_Data32_identity(x: ByteArray): ByteArray {
+    val ffi_x = identity(x)
+    val ffiOut =
+      NativeTesting.TESTING_conversion_Data32_identity(
+        ffi_x,
+      )
+
+    return identity(ffiOut)
+  }
+
+  public fun TESTING_conversion_Data32_to_string(x: ByteArray): String {
+    val ffi_x = identity(x)
+    val ffiOut =
+      NativeTesting.TESTING_conversion_Data32_to_string(
+        ffi_x,
+      )
+
+    return identity(ffiOut)
   }
 
   public fun TESTING_conversion_Data_VecU8_identity(x: ByteArray): ByteArray {

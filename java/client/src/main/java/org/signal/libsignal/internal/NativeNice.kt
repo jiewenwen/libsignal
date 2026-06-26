@@ -10,14 +10,35 @@
   "ktlint:standard:property-naming",
   "ktlint:standard:filename",
   "ktlint:standard:max-line-length",
+  "PLATFORM_CLASS_MAPPED_TO_KOTLIN",
 )
 
 package org.signal.libsignal.internal
 
 import org.signal.libsignal.internal.NativeNiceHelpers.identity
+import org.signal.libsignal.internal.NativeNiceHelpers.mapBridgeVecArg
 import org.signal.libsignal.internal.NativeNiceHelpers.mapPair
 
 internal object NativeNice {
+  public fun AuthenticatedChatConnection_reserve_username_hash(
+    asyncCtx: TokioAsyncContext,
+    chat: org.signal.libsignal.net.AuthenticatedChatConnection,
+    usernameHashes: List<ByteArray>,
+  ): CompletableFuture<ByteArray> {
+    val ffi_chat = identity(chat)
+    val ffi_username_hashes = mapBridgeVecArg<ByteArray, ByteArray>({ identity(it) })(usernameHashes)
+    val ffiOut =
+      NativeHandleGuard(asyncCtx).use { asyncCtxHandle ->
+        Native.AuthenticatedChatConnection_reserve_username_hash(
+          asyncCtxHandle.nativeHandle(),
+          ffi_chat,
+          ffi_username_hashes,
+        )
+      }
+    return ffiOut
+      .makeCancelable(asyncCtx)
+  }
+
   public fun AuthenticatedChatConnection_set_device_name(
     asyncCtx: TokioAsyncContext,
     chat: org.signal.libsignal.net.AuthenticatedChatConnection,

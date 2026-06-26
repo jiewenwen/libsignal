@@ -13,6 +13,7 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import org.junit.Test
 import org.signal.libsignal.protocol.ServiceId
+import java.util.Arrays
 import java.util.UUID
 import kotlin.io.encoding.Base64
 import kotlin.random.Random
@@ -106,6 +107,26 @@ class NativeTestingNiceTest {
     )
 
   @Test
+  fun data32() =
+    testConversion(
+      sequenceOf(Random.nextBytes(32)),
+      toString = Base64::encode,
+      nativeToString = NativeTestingNice::TESTING_conversion_Data32_to_string,
+      nativeIdentity = NativeTestingNice::TESTING_conversion_Data32_identity,
+      equality = java.util.Arrays::equals,
+    )
+
+  @Test
+  fun data32BridgeVec() =
+    testConversion(
+      (0 until 8).asSequence().map { count -> (0 until count).map { Random.nextBytes(32) } },
+      toString = { it.joinToString("\n", transform = Base64::encode) },
+      nativeToString = NativeTestingNice::TESTING_conversion_BridgeVecData32_to_string,
+      nativeIdentity = NativeTestingNice::TESTING_conversion_BridgeVecData32_identity,
+      equality = { a, b -> a.zip(b).all { (a, b) -> a.contentEquals(b) } },
+    )
+
+  @Test
   fun dataU8() =
     testConversion(
       (0 until 10).asSequence().map({ Random.nextBytes(1 shl it) }),
@@ -113,6 +134,37 @@ class NativeTestingNiceTest {
       nativeToString = NativeTestingNice::TESTING_conversion_Data_VecU8_to_string,
       nativeIdentity = NativeTestingNice::TESTING_conversion_Data_VecU8_identity,
       equality = java.util.Arrays::equals,
+    )
+
+  @Test
+  fun bridgeVecString() =
+    testConversion(
+      listOf(listOf(), listOf("one"), listOf("one", "two"), listOf("one", "two", "three")).asSequence(),
+      toString = { arr -> buildJsonArray { arr.forEach { add(it) } }.toString() },
+      nativeToString = NativeTestingNice::TESTING_conversion_BridgeVecString_to_string,
+      nativeIdentity = NativeTestingNice::TESTING_conversion_BridgeVecString_identity,
+    )
+
+  @Test
+  fun bridgeVecMySimpleTestEnum() =
+    testConversion(
+      listOf(
+        listOf(),
+        listOf(MySimpleTestEnum.A),
+        listOf(MySimpleTestEnum.B),
+        listOf(
+          MySimpleTestEnum.A,
+          MySimpleTestEnum.B,
+        ),
+        listOf(MySimpleTestEnum.A, MySimpleTestEnum.A, MySimpleTestEnum.B),
+        listOf(
+          MySimpleTestEnum.B,
+          MySimpleTestEnum.B,
+        ),
+      ).asSequence(),
+      toString = { arr -> buildJsonArray { arr.forEach { add(it.toString()) } }.toString() },
+      nativeToString = NativeTestingNice::TESTING_MySimpleTestEnum_BridgeVec_to_string,
+      nativeIdentity = NativeTestingNice::TESTING_MySimpleTestEnum_BridgeVec_identity,
     )
 
   @Test
